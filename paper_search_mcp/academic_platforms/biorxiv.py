@@ -1,9 +1,13 @@
+from pathlib import Path
 from typing import List
-import requests
-import os
 from datetime import datetime, timedelta
-from ..paper import Paper
+
+import requests
 from PyPDF2 import PdfReader
+
+from .._http import DEFAULT_TIMEOUT, RetryPolicy, build_session, request_with_retries
+from .._paths import resolve_download_target
+from ..paper import Paper
 
 class PaperSource:
     """Abstract base class for paper sources"""
@@ -19,12 +23,25 @@ class PaperSource:
 class BioRxivSearcher(PaperSource):
     """Searcher for bioRxiv papers"""
     BASE_URL = "https://api.biorxiv.org/details/biorxiv"
+    PDF_HEADERS = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/91.0.4472.124 Safari/537.36"
+        )
+    }
 
     def __init__(self):
-        self.session = requests.Session()
+        self.session = build_session(headers=self.PDF_HEADERS)
         self.session.proxies = {'http': None, 'https': None}
         self.timeout = 30
         self.max_retries = 3
+
+    def _retry_policy(self) -> RetryPolicy:
+        return RetryPolicy(max_retries=max(self.max_retries - 1, 0))
+
+    def _pdf_target(self, paper_id: str, save_path: str):
+        return resolve_download_target(filename=f"{paper_id}.pdf", save_path=save_path)
 
     def search(self, query: str, max_results: int = 10, days: int = 30) -> List[Paper]:
         """
@@ -51,45 +68,42 @@ class BioRxivSearcher(PaperSource):
             url = f"{self.BASE_URL}/{start_date}/{end_date}/{cursor}"
             if category:
                 url += f"?category={category}"
-            tries = 0
-            while tries < self.max_retries:
-                try:
-                    response = self.session.get(url, timeout=self.timeout)
-                    response.raise_for_status()
-                    data = response.json()
-                    collection = data.get('collection', [])
-                    for item in collection:
-                        try:
-                            date = datetime.strptime(item['date'], '%Y-%m-%d')
-                            papers.append(Paper(
-                                paper_id=item['doi'],
-                                title=item['title'],
-                                authors=item['authors'].split('; '),
-                                abstract=item['abstract'],
-                                url=f"https://www.biorxiv.org/content/{item['doi']}v{item.get('version', '1')}",
-                                pdf_url=f"https://www.biorxiv.org/content/{item['doi']}v{item.get('version', '1')}.full.pdf",
-                                published_date=date,
-                                updated_date=date,
-                                source="biorxiv",
-                                categories=[item['category']],
-                                keywords=[],
-                                doi=item['doi']
-                            ))
-                        except Exception as e:
-                            print(f"Error parsing bioRxiv entry: {e}")
-                    if len(collection) < 100:
-                        break  # No more results
-                    cursor += 100
-                    break  # Exit retry loop on success
-                except requests.exceptions.RequestException as e:
-                    tries += 1
-                    if tries == self.max_retries:
-                        print(f"Failed to connect to bioRxiv API after {self.max_retries} attempts: {e}")
-                        break
-                    print(f"Attempt {tries} failed, retrying...")
-            else:
-                continue
-            break
+            try:
+                response = request_with_retries(
+                    self.session,
+                    "GET",
+                    url,
+                    timeout=DEFAULT_TIMEOUT,
+                    retry_policy=self._retry_policy(),
+                )
+                response.raise_for_status()
+                data = response.json()
+                collection = data.get('collection', [])
+                for item in collection:
+                    try:
+                        date = datetime.strptime(item['date'], '%Y-%m-%d')
+                        papers.append(Paper(
+                            paper_id=item['doi'],
+                            title=item['title'],
+                            authors=item['authors'].split('; '),
+                            abstract=item['abstract'],
+                            url=f"https://www.biorxiv.org/content/{item['doi']}v{item.get('version', '1')}",
+                            pdf_url=f"https://www.biorxiv.org/content/{item['doi']}v{item.get('version', '1')}.full.pdf",
+                            published_date=date,
+                            updated_date=date,
+                            source="biorxiv",
+                            categories=[item['category']],
+                            keywords=[],
+                            doi=item['doi']
+                        ))
+                    except Exception as e:
+                        print(f"Error parsing bioRxiv entry: {e}")
+                if len(collection) < 100:
+                    break  # No more results
+                cursor += 100
+            except (requests.exceptions.RequestException, ValueError) as e:
+                print(f"Failed to connect to bioRxiv API after {self.max_retries} attempts: {e}")
+                break
 
         return papers[:max_results]
 
@@ -108,25 +122,21 @@ class BioRxivSearcher(PaperSource):
             raise ValueError("Invalid paper_id: paper_id is empty")
 
         pdf_url = f"https://www.biorxiv.org/content/{paper_id}v1.full.pdf"
-        tries = 0
-        while tries < self.max_retries:
-            try:
-                # Add User-Agent to avoid potential 403 errors
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                }
-                response = self.session.get(pdf_url, timeout=self.timeout, headers=headers)
-                response.raise_for_status()
-                os.makedirs(save_path, exist_ok=True)
-                output_file = f"{save_path}/{paper_id.replace('/', '_')}.pdf"
-                with open(output_file, 'wb') as f:
-                    f.write(response.content)
-                return output_file
-            except requests.exceptions.RequestException as e:
-                tries += 1
-                if tries == self.max_retries:
-                    raise Exception(f"Failed to download PDF after {self.max_retries} attempts: {e}")
-                print(f"Attempt {tries} failed, retrying...")
+        target = self._pdf_target(paper_id, save_path)
+        try:
+            response = request_with_retries(
+                self.session,
+                "GET",
+                pdf_url,
+                headers=self.PDF_HEADERS,
+                timeout=DEFAULT_TIMEOUT,
+                retry_policy=self._retry_policy(),
+            )
+            response.raise_for_status()
+            target.path.write_bytes(response.content)
+            return str(target.path)
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Failed to download PDF after {self.max_retries} attempts: {e}") from e
     
     def read_paper(self, paper_id: str, save_path: str = "./downloads") -> str:
         """
@@ -139,9 +149,9 @@ class BioRxivSearcher(PaperSource):
         Returns:
             str: The extracted text content of the paper
         """
-        pdf_path = f"{save_path}/{paper_id.replace('/', '_')}.pdf"
-        if not os.path.exists(pdf_path):
-            pdf_path = self.download_pdf(paper_id, save_path)
+        pdf_path = self._pdf_target(paper_id, save_path).path
+        if not pdf_path.exists():
+            pdf_path = Path(self.download_pdf(paper_id, save_path))
         
         try:
             reader = PdfReader(pdf_path)

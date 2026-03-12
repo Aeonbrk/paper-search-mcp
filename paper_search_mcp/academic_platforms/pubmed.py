@@ -1,10 +1,11 @@
 # paper_search_mcp/sources/pubmed.py
 from typing import List
-import requests
 from xml.etree import ElementTree as ET
 from datetime import datetime
 from ..paper import Paper
-import os
+import requests
+
+from .._http import DEFAULT_TIMEOUT, build_session
 
 class PaperSource:
     """Abstract base class for paper sources"""
@@ -22,6 +23,10 @@ class PubMedSearcher(PaperSource):
     SEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
     FETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 
+    def __init__(self):
+        self.session = build_session()
+        self.timeout = DEFAULT_TIMEOUT
+
     def search(self, query: str, max_results: int = 10) -> List[Paper]:
         search_params = {
             'db': 'pubmed',
@@ -29,29 +34,73 @@ class PubMedSearcher(PaperSource):
             'retmax': max_results,
             'retmode': 'xml'
         }
-        search_response = requests.get(self.SEARCH_URL, params=search_params)
-        search_root = ET.fromstring(search_response.content)
-        ids = [id.text for id in search_root.findall('.//Id')]
+        try:
+            search_response = self.session.get(
+                self.SEARCH_URL, params=search_params, timeout=self.timeout
+            )
+            search_response.raise_for_status()
+        except requests.RequestException as e:
+            print(f"Error fetching PubMed search results: {e}")
+            return []
+
+        try:
+            search_root = ET.fromstring(search_response.content)
+        except ET.ParseError as e:
+            print(f"Error parsing PubMed search XML: {e}")
+            return []
+
+        ids = [node.text for node in search_root.findall(".//Id") if node.text]
+        if not ids:
+            return []
         
         fetch_params = {
             'db': 'pubmed',
             'id': ','.join(ids),
             'retmode': 'xml'
         }
-        fetch_response = requests.get(self.FETCH_URL, params=fetch_params)
-        fetch_root = ET.fromstring(fetch_response.content)
+        try:
+            fetch_response = self.session.get(
+                self.FETCH_URL, params=fetch_params, timeout=self.timeout
+            )
+            fetch_response.raise_for_status()
+        except requests.RequestException as e:
+            print(f"Error fetching PubMed article details: {e}")
+            return []
+
+        try:
+            fetch_root = ET.fromstring(fetch_response.content)
+        except ET.ParseError as e:
+            print(f"Error parsing PubMed fetch XML: {e}")
+            return []
         
         papers = []
         for article in fetch_root.findall('.//PubmedArticle'):
             try:
-                pmid = article.find('.//PMID').text
-                title = article.find('.//ArticleTitle').text
-                authors = [f"{author.find('LastName').text} {author.find('Initials').text}" 
-                           for author in article.findall('.//Author')]
-                abstract = article.find('.//AbstractText').text if article.find('.//AbstractText') is not None else ''
-                pub_date = article.find('.//PubDate/Year').text
-                published = datetime.strptime(pub_date, '%Y')
-                doi = article.find('.//ELocationID[@EIdType="doi"]').text if article.find('.//ELocationID[@EIdType="doi"]') is not None else ''
+                pmid_node = article.find(".//PMID")
+                title_node = article.find(".//ArticleTitle")
+                year_node = article.find(".//PubDate/Year")
+                if pmid_node is None or title_node is None or year_node is None:
+                    continue
+
+                pmid = pmid_node.text or ""
+                title = title_node.text or ""
+
+                authors = []
+                for author in article.findall(".//Author"):
+                    last = author.findtext("LastName") or ""
+                    initials = author.findtext("Initials") or ""
+                    name = f"{last} {initials}".strip()
+                    if name:
+                        authors.append(name)
+
+                abstract_node = article.find(".//AbstractText")
+                abstract = abstract_node.text if abstract_node is not None and abstract_node.text else ""
+
+                pub_date = year_node.text or ""
+                published = datetime.strptime(pub_date, "%Y")
+
+                doi_node = article.find('.//ELocationID[@EIdType="doi"]')
+                doi = doi_node.text if doi_node is not None and doi_node.text else ""
                 papers.append(Paper(
                     paper_id=pmid,
                     title=title,

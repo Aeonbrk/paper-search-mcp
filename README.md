@@ -1,180 +1,140 @@
 # Paper Search MCP
 
-A Model Context Protocol (MCP) server for searching and downloading academic papers from multiple sources, including arXiv, PubMed, bioRxiv, and Sci-Hub (optional). Designed for seamless integration with large language models like Claude Desktop.
+`paper-search-mcp` is a Python FastMCP server for searching academic papers
+across multiple sources and, when the source permits it, downloading PDFs or
+extracting text.
 
-![PyPI](https://img.shields.io/pypi/v/paper-search-mcp.svg) ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
+![PyPI](https://img.shields.io/pypi/v/paper-search-mcp.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
 [![smithery badge](https://smithery.ai/badge/@openags/paper-search-mcp)](https://smithery.ai/server/@openags/paper-search-mcp)
 
----
+## What this repo is for
 
-## Table of Contents
+- Expose paper-search tools through the Model Context Protocol.
+- Normalize source results through a shared `Paper` model.
+- Keep source-specific capabilities explicit instead of pretending every source
+  works the same way.
 
-- [Overview](#overview)
-- [Features](#features)
-- [Installation](#installation)
-  - [Quick Start](#quick-start)
-    - [Install Package](#install-package)
-    - [Configure Claude Desktop](#configure-claude-desktop)
-  - [For Development](#for-development)
-    - [Setup Environment](#setup-environment)
-    - [Install Dependencies](#install-dependencies)
-- [Contributing](#contributing)
-- [Demo](#demo)
-- [License](#license)
-- [TODO](#todo)
+For the maintained repo shape and capability boundaries, start with:
 
----
+- `ARCHITECTURE.md`
+- `docs/PROJECT_SENSE.md`
+- `docs/project-specs/mcp-tool-contract.md`
+- `docs/project-specs/source-capability-matrix.md`
+- `docs/TODO.md`
 
-## Overview
+## Supported sources
 
-`paper-search-mcp` is a Python-based MCP server that enables users to search and download academic papers from various platforms. It provides tools for searching papers (e.g., `search_arxiv`) and downloading PDFs (e.g., `download_arxiv`), making it ideal for researchers and AI-driven workflows. Built with the MCP Python SDK, it integrates seamlessly with LLM clients like Claude Desktop.
+The repo currently ships search support for:
 
----
+- arXiv
+- PubMed
+- bioRxiv
+- medRxiv
+- Google Scholar
+- IACR ePrint Archive
+- Semantic Scholar
+- CrossRef
 
-## Features
+Support is intentionally uneven:
 
-- **Multi-Source Support**: Search and download papers from arXiv, PubMed, bioRxiv, medRxiv, Google Scholar, IACR ePrint Archive, Semantic Scholar.
-- **Standardized Output**: Papers are returned in a consistent dictionary format via the `Paper` class.
-- **Asynchronous Tools**: Efficiently handles network requests using `httpx`.
-- **MCP Integration**: Compatible with MCP clients for LLM context enhancement.
-- **Extensible Design**: Easily add new academic platforms by extending the `academic_platforms` module.
+- some sources are metadata-only,
+- some support PDF download,
+- some also support text extraction from downloaded PDFs,
+- scraping-based sources are more fragile than API-backed sources.
 
----
+See `docs/project-specs/source-capability-matrix.md` for the current source
+matrix.
 
-## Installation
+Sci-Hub-related code exists in the repo, but it is not part of the default
+supported surface.
 
-`paper-search-mcp` can be installed using `uv` or `pip`. Below are two approaches: a quick start for immediate use and a detailed setup for development.
+Supported download/read helpers write under `docs/downloads/`.
 
-### Installing via Smithery
+## Quick start
 
-To install paper-search-mcp for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@openags/paper-search-mcp):
+### Run from this repo with `uv`
+
+```bash
+uv run -m paper_search_mcp.server
+```
+
+### Install through Smithery
 
 ```bash
 npx -y @smithery/cli install @openags/paper-search-mcp --client claude
 ```
 
-### Quick Start
+### Claude Desktop configuration
 
-For users who want to quickly run the server:
+Add a server entry to your Claude Desktop config:
 
-1. **Install Package**:
+```json
+{
+  "mcpServers": {
+    "paper_search_server": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/path/to/paper-search-mcp",
+        "-m",
+        "paper_search_mcp.server"
+      ],
+      "env": {
+        "SEMANTIC_SCHOLAR_API_KEY": ""
+      }
+    }
+  }
+}
+```
 
-   ```bash
-   uv add paper-search-mcp
-   ```
+`SEMANTIC_SCHOLAR_API_KEY` is optional. Without it, Semantic Scholar requests
+use unauthenticated access with lower rate limits.
 
-2. **Configure Claude Desktop**:
-   Add this configuration to `~/Library/Application Support/Claude/claude_desktop_config.json` (Mac) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
-   ```json
-   {
-     "mcpServers": {
-       "paper_search_server": {
-         "command": "uv",
-         "args": [
-           "run",
-           "--directory",
-           "/path/to/your/paper-search-mcp",
-           "-m",
-           "paper_search_mcp.server"
-         ],
-         "env": {
-           "SEMANTIC_SCHOLAR_API_KEY": "" // Optional: For enhanced Semantic Scholar features
-         }
-       }
-     }
-   }
-   ```
-   > Note: Replace `/path/to/your/paper-search-mcp` with your actual installation path.
+## Development
 
-### For Development
+```bash
+uv sync --locked
+uv run -m paper_search_mcp.server
+```
 
-For developers who want to modify the code or contribute:
+Default verification for doc or governance changes:
 
-1. **Setup Environment**:
+```bash
+uv sync --locked
+markdownlint AGENTS.md ARCHITECTURE.md README.md docs/**/*.md codemap/**/*.md
+uv run python -m compileall paper_search_mcp tests
+uv run python -c "import paper_search_mcp.server as s; print(s.mcp.name)"
+uv run python -m unittest discover -q
+```
 
-   ```bash
-   # Install uv if not installed
-   curl -LsSf https://astral.sh/uv/install.sh | sh
+If your shell does not expand `**`, quote the globs or pass explicit file lists
+to `markdownlint`.
 
-   # Clone repository
-   git clone https://github.com/openags/paper-search-mcp.git
-   cd paper-search-mcp
+Targeted live tests are opt-in:
 
-   # Create and activate virtual environment
-   uv venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
+```bash
+PAPER_SEARCH_LIVE_TESTS=1 uv run python -m unittest -q tests.test_arxiv
+```
 
-2. **Install Dependencies**:
+See `docs/playbooks/validation.md` for the repo's validation flow and
+`docs/playbooks/release.md` for release steps.
 
-   ```bash
-   # Install project in editable mode
-   uv add -e .
+## Repo map
 
-   # Add development dependencies (optional)
-   uv add pytest flake8
-   ```
-
----
-
-## Contributing
-
-We welcome contributions! Here's how to get started:
-
-1. **Fork the Repository**:
-   Click "Fork" on GitHub.
-
-2. **Clone and Set Up**:
-
-   ```bash
-   git clone https://github.com/yourusername/paper-search-mcp.git
-   cd paper-search-mcp
-   pip install -e ".[dev]"  # Install dev dependencies (if added to pyproject.toml)
-   ```
-
-3. **Make Changes**:
-
-   - Add new platforms in `academic_platforms/`.
-   - Update tests in `tests/`.
-
-4. **Submit a Pull Request**:
-   Push changes and create a PR on GitHub.
-
----
+- `paper_search_mcp/server.py` — FastMCP entrypoint and tool registration
+- `paper_search_mcp/academic_platforms/` — source adapters
+- `paper_search_mcp/paper.py` — normalized paper schema
+- `tests/` — offline smoke tests plus opt-in live adapter checks
+- `docs/` — durable repo guidance
+- `codemap/` — docs-first navigation layer
 
 ## Demo
 
-<img src="docs\images\demo.png" alt="Demo" width="800">
-
-## TODO
-
-### Planned Academic Platforms
-
-- [√] arXiv
-- [√] PubMed
-- [√] bioRxiv
-- [√] medRxiv
-- [√] Google Scholar
-- [√] IACR ePrint Archive
-- [√] Semantic Scholar
-- [ ] PubMed Central (PMC)
-- [ ] Science Direct
-- [ ] Springer Link
-- [ ] IEEE Xplore
-- [ ] ACM Digital Library
-- [ ] Web of Science
-- [ ] Scopus
-- [ ] JSTOR
-- [ ] ResearchGate
-- [ ] CORE
-- [ ] Microsoft Academic
-
----
+![Demo](docs/images/demo.png)
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for details.
-
----
-
-Happy researching with `paper-search-mcp`! If you encounter issues, open a GitHub issue.
+This project is licensed under the MIT License. See `LICENSE`.

@@ -1,13 +1,16 @@
+from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
+import logging
+import random
+
 import requests
 from bs4 import BeautifulSoup
-import time
-import random
-from ..paper import Paper
-import logging
 from PyPDF2 import PdfReader
-import os
+
+from .._http import DEFAULT_TIMEOUT, RetryPolicy, build_session, request_with_retries
+from .._paths import resolve_download_target
+from ..paper import Paper
 
 logger = logging.getLogger(__name__)
 
@@ -41,22 +44,44 @@ class IACRSearcher(PaperSource):
 
     def _setup_session(self):
         """Initialize session with random user agent"""
-        self.session = requests.Session()
-        self.session.headers.update(
-            {
-                "User-Agent": random.choice(self.BROWSERS),
+        self.session = build_session(
+            user_agent=random.choice(self.BROWSERS),
+            headers={
                 "Accept": "text/html,application/xhtml+xml",
                 "Accept-Language": "en-US,en;q=0.9",
-            }
+            },
         )
 
     def _parse_date(self, date_str: str) -> Optional[datetime]:
         """Parse date from IACR format (e.g., '2025-06-02')"""
+        if not date_str:
+            return None
         try:
             return datetime.strptime(date_str.strip(), "%Y-%m-%d")
         except ValueError:
             logger.warning(f"Could not parse date: {date_str}")
             return None
+
+    def _fetch_response(self, url: str, **kwargs) -> requests.Response:
+        response = request_with_retries(
+            self.session,
+            "GET",
+            url,
+            timeout=DEFAULT_TIMEOUT,
+            retry_policy=RetryPolicy(max_retries=2, backoff_base_seconds=1.0),
+            **kwargs,
+        )
+        response.raise_for_status()
+        return response
+
+    def _download_pdf_file(self, paper: Paper, save_path: str) -> Path:
+        response = self._fetch_response(paper.pdf_url)
+        target = resolve_download_target(
+            filename=f"iacr_{paper.paper_id}.pdf",
+            save_path=save_path,
+        )
+        target.path.write_bytes(response.content)
+        return target.path
 
     def _parse_paper(self, item, fetch_details: bool = True) -> Optional[Paper]:
         """Parse single paper entry from IACR HTML and optionally fetch detailed info"""
@@ -170,14 +195,8 @@ class IACRSearcher(PaperSource):
             # Construct search parameters
             params = {"q": query}
 
-            # Make request
-            response = self.session.get(self.IACR_SEARCH_URL, params=params)
+            response = self._fetch_response(self.IACR_SEARCH_URL, params=params)
 
-            if response.status_code != 200:
-                logger.error(f"IACR search failed with status {response.status_code}")
-                return papers
-
-            # Parse results
             soup = BeautifulSoup(response.text, "html.parser")
 
             # Find all paper entries - they are divs with class "mb-4"
@@ -214,18 +233,19 @@ class IACRSearcher(PaperSource):
             str: Path to downloaded file or error message
         """
         try:
-            pdf_url = f"{self.IACR_BASE_URL}/{paper_id}.pdf"
-
-            response = self.session.get(pdf_url)
-
-            if response.status_code == 200:
-                filename = f"{save_path}/iacr_{paper_id.replace('/', '_')}.pdf"
-                with open(filename, "wb") as f:
-                    f.write(response.content)
-                return filename
-            else:
-                return f"Failed to download PDF: HTTP {response.status_code}"
-
+            paper = Paper(
+                paper_id=paper_id,
+                title="",
+                authors=[],
+                abstract="",
+                url=f"{self.IACR_BASE_URL}/{paper_id}",
+                pdf_url=f"{self.IACR_BASE_URL}/{paper_id}.pdf",
+                published_date=datetime.now(),
+                source="iacr",
+                doi="",
+            )
+            pdf_path = self._download_pdf_file(paper, save_path)
+            return str(pdf_path)
         except Exception as e:
             logger.error(f"PDF download error: {e}")
             return f"Error downloading PDF: {e}"
@@ -247,19 +267,7 @@ class IACRSearcher(PaperSource):
             if not paper or not paper.pdf_url:
                 return f"Error: Could not find PDF URL for paper {paper_id}"
 
-            # Download the PDF
-            pdf_response = requests.get(paper.pdf_url, timeout=30)
-            pdf_response.raise_for_status()
-
-            # Create download directory if it doesn't exist
-            os.makedirs(save_path, exist_ok=True)
-
-            # Save the PDF
-            filename = f"iacr_{paper_id.replace('/', '_')}.pdf"
-            pdf_path = os.path.join(save_path, filename)
-
-            with open(pdf_path, "wb") as f:
-                f.write(pdf_response.content)
+            pdf_path = self._download_pdf_file(paper, save_path)
 
             # Extract text using PyPDF2
             reader = PdfReader(pdf_path)
@@ -320,16 +328,8 @@ class IACRSearcher(PaperSource):
             else:
                 paper_url = f"{self.IACR_BASE_URL}/{paper_id}"
 
-            # Make request
-            response = self.session.get(paper_url)
+            response = self._fetch_response(paper_url)
 
-            if response.status_code != 200:
-                logger.error(
-                    f"Failed to fetch paper details: HTTP {response.status_code}"
-                )
-                return None
-
-            # Parse the page
             soup = BeautifulSoup(response.text, "html.parser")
 
             # Extract title from h3 element

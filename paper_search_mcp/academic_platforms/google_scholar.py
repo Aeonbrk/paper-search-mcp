@@ -1,10 +1,12 @@
 from typing import List, Optional
 from datetime import datetime
+import hashlib
 import requests
 from bs4 import BeautifulSoup
 import time
 import random
 from ..paper import Paper
+from .._http import DEFAULT_TIMEOUT, RetryPolicy, build_session, request_with_retries
 import logging
 
 logger = logging.getLogger(__name__)
@@ -36,12 +38,20 @@ class GoogleScholarSearcher(PaperSource):
 
     def _setup_session(self):
         """Initialize session with random user agent"""
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': random.choice(self.BROWSERS),
-            'Accept': 'text/html,application/xhtml+xml',
-            'Accept-Language': 'en-US,en;q=0.9'
-        })
+        self.session = build_session(
+            user_agent=random.choice(self.BROWSERS),
+            headers={
+                "Accept": "text/html,application/xhtml+xml",
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+        )
+
+    def _stable_paper_id(self, *, url: str, title: str, authors: List[str]) -> str:
+        basis = url.strip()
+        if not basis:
+            basis = f"{title}|{'|'.join(a.strip() for a in authors if a.strip())}"
+        digest = hashlib.sha256(basis.encode("utf-8")).hexdigest()[:16]
+        return f"gs_{digest}"
 
     def _extract_year(self, text: str) -> Optional[int]:
         """Extract year from publication info"""
@@ -73,7 +83,7 @@ class GoogleScholarSearcher(PaperSource):
 
             # Create paper object
             return Paper(
-                paper_id=f"gs_{hash(url)}",
+                paper_id=self._stable_paper_id(url=url, title=title, authors=authors),
                 title=title,
                 authors=authors,
                 abstract=abstract_elem.get_text() if abstract_elem else "",
@@ -98,6 +108,12 @@ class GoogleScholarSearcher(PaperSource):
         papers = []
         start = 0
         results_per_page = min(10, max_results)
+        retry_policy = RetryPolicy(
+            max_retries=2,
+            backoff_base_seconds=1.0,
+            backoff_factor=2.0,
+            backoff_max_seconds=8.0,
+        )
 
         while len(papers) < max_results:
             try:
@@ -109,9 +125,18 @@ class GoogleScholarSearcher(PaperSource):
                     'as_sdt': '0,5'  # Include articles and citations
                 }
 
-                # Make request with random delay
-                time.sleep(random.uniform(1.0, 3.0))
-                response = self.session.get(self.SCHOLAR_URL, params=params)
+                # Keep a small delay only for follow-up pages.
+                if start > 0:
+                    time.sleep(random.uniform(1.0, 3.0))
+
+                response = request_with_retries(
+                    self.session,
+                    "GET",
+                    self.SCHOLAR_URL,
+                    params=params,
+                    timeout=DEFAULT_TIMEOUT,
+                    retry_policy=retry_policy,
+                )
                 
                 if response.status_code != 200:
                     logger.error(f"Search failed with status {response.status_code}")

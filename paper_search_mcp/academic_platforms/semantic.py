@@ -1,14 +1,17 @@
-from typing import List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 from datetime import datetime
-import requests
-from bs4 import BeautifulSoup
-import time
-import random
-from ..paper import Paper
 import logging
-from PyPDF2 import PdfReader
 import os
 import re
+import random
+
+import requests
+from PyPDF2 import PdfReader
+
+from .._http import DEFAULT_TIMEOUT, RetryPolicy, build_session, request_with_retries
+from .._paths import resolve_download_target
+from ..paper import Paper
 
 logger = logging.getLogger(__name__)
 
@@ -42,17 +45,18 @@ class SemanticSearcher(PaperSource):
 
     def _setup_session(self):
         """Initialize session with random user agent"""
-        self.session = requests.Session()
-        self.session.headers.update(
-            {
-                "User-Agent": random.choice(self.BROWSERS),
-                "Accept": "text/html,application/xhtml+xml",
+        self.session = build_session(
+            user_agent=random.choice(self.BROWSERS),
+            headers={
+                "Accept": "application/json",
                 "Accept-Language": "en-US,en;q=0.9",
-            }
+            },
         )
 
     def _parse_date(self, date_str: str) -> Optional[datetime]:
         """Parse date from Semantic Scholar format (e.g., '2025-06-02')"""
+        if not date_str:
+            return None
         try:
             return datetime.strptime(date_str.strip(), "%Y-%m-%d")
         except ValueError:
@@ -155,53 +159,61 @@ class SemanticSearcher(PaperSource):
             logger.warning("No SEMANTIC_SCHOLAR_API_KEY set or it's empty. Using unauthenticated access with lower rate limits.")
             return None
         return api_key.strip()
-    
-    def request_api(self, path: str, params: dict) -> dict:
+
+    @staticmethod
+    def _paper_fields() -> List[str]:
+        return [
+            "title",
+            "abstract",
+            "year",
+            "citationCount",
+            "authors",
+            "url",
+            "publicationDate",
+            "externalIds",
+            "fieldsOfStudy",
+            "openAccessPdf",
+        ]
+
+    def request_api(self, path: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Make a request to the Semantic Scholar API with optional API key.
         """
-        max_retries = 3
-        retry_delay = 2  # seconds
-        
-        for attempt in range(max_retries):
-            try:
-                api_key = self.get_api_key()
-                headers = {"x-api-key": api_key} if api_key else {}
-                url = f"{self.SEMANTIC_BASE_URL}/{path}"
-                response = self.session.get(url, params=params, headers=headers)
-                
-                # 检查是否是429错误（限流）
-                if response.status_code == 429:
-                    if attempt < max_retries - 1:
-                        wait_time = retry_delay * (2 ** attempt)  # 指数退避
-                        logger.warning(f"Rate limited (429). Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}")
-                        time.sleep(wait_time)
-                        continue
-                    else:
-                        logger.error(f"Rate limited (429) after {max_retries} attempts. Please wait before making more requests.")
-                        return {"error": "rate_limited", "status_code": 429, "message": "Too many requests. Please wait before retrying."}
-                
-                response.raise_for_status()
-                return response
-                
-            except requests.exceptions.HTTPError as e:
-                if e.response.status_code == 429:
-                    if attempt < max_retries - 1:
-                        wait_time = retry_delay * (2 ** attempt)
-                        logger.warning(f"Rate limited (429). Waiting {wait_time} seconds before retry {attempt + 1}/{max_retries}")
-                        time.sleep(wait_time)
-                        continue
-                    else:
-                        logger.error(f"Rate limited (429) after {max_retries} attempts. Please wait before making more requests.")
-                        return {"error": "rate_limited", "status_code": 429, "message": "Too many requests. Please wait before retrying."}
-                else:
-                    logger.error(f"HTTP Error requesting API: {e}")
-                    return {"error": "http_error", "status_code": e.response.status_code, "message": str(e)}
-            except Exception as e:
-                logger.error(f"Error requesting API: {e}")
-                return {"error": "general_error", "message": str(e)}
-        
-        return {"error": "max_retries_exceeded", "message": "Maximum retry attempts exceeded"}
+        api_key = self.get_api_key()
+        headers = {"x-api-key": api_key} if api_key else None
+        retry_policy = RetryPolicy(max_retries=3, backoff_base_seconds=2.0)
+        url = f"{self.SEMANTIC_BASE_URL}/{path}"
+
+        try:
+            response = request_with_retries(
+                self.session,
+                "GET",
+                url,
+                params=params,
+                headers=headers,
+                timeout=DEFAULT_TIMEOUT,
+                retry_policy=retry_policy,
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.HTTPError as exc:
+            status_code = exc.response.status_code if exc.response is not None else "unknown"
+            if status_code == 429:
+                logger.error(
+                    "Rate limited (429) by Semantic Scholar after %s attempts",
+                    retry_policy.max_retries + 1,
+                )
+            else:
+                logger.error(
+                    "HTTP error requesting Semantic Scholar API (%s): %s",
+                    status_code,
+                    exc,
+                )
+        except requests.RequestException as exc:
+            logger.error("Error requesting Semantic Scholar API: %s", exc)
+        except ValueError as exc:
+            logger.error("Error decoding Semantic Scholar API response: %s", exc)
+        return None
 
     def search(self, query: str, year: Optional[str] = None, max_results: int = 10) -> List[Paper]:
         """
@@ -222,35 +234,18 @@ class SemanticSearcher(PaperSource):
         papers = []
 
         try:
-            fields = ["title", "abstract", "year", "citationCount", "authors", "url","publicationDate","externalIds","fieldsOfStudy"]
-            # Construct search parameters
             params = {
                 "query": query,
                 "limit": max_results,
-                "fields": ",".join(fields),
+                "fields": ",".join(self._paper_fields()),
             }
             if year:
                 params["year"] = year
-            # Make request
-            response = self.request_api("paper/search", params)
-            
-            # Check for errors
-            if isinstance(response, dict) and "error" in response:
-                error_msg = response.get("message", "Unknown error")
-                if response.get("error") == "rate_limited":
-                    logger.error(f"Rate limited by Semantic Scholar API: {error_msg}")
-                else:
-                    logger.error(f"Semantic Scholar API error: {error_msg}")
+            data = self.request_api("paper/search", params)
+            if data is None:
                 return papers
-            
-            # Check response status code
-            if not hasattr(response, 'status_code') or response.status_code != 200:
-                status_code = getattr(response, 'status_code', 'unknown')
-                logger.error(f"Semantic Scholar search failed with status {status_code}")
-                return papers
-                
-            data = response.json()
-            results = data['data']
+
+            results = data.get("data", [])
 
             if not results:
                 logger.info("No results found for the query")
@@ -270,6 +265,23 @@ class SemanticSearcher(PaperSource):
             logger.error(f"Semantic Scholar search error: {e}")
 
         return papers[:max_results]
+
+    def _download_pdf_file(self, paper: Paper, save_path: str) -> Path:
+        response = request_with_retries(
+            self.session,
+            "GET",
+            paper.pdf_url,
+            timeout=DEFAULT_TIMEOUT,
+            retry_policy=RetryPolicy(max_retries=3, backoff_base_seconds=2.0),
+        )
+        response.raise_for_status()
+
+        target = resolve_download_target(
+            filename=f"semantic_{paper.paper_id}.pdf",
+            save_path=save_path,
+        )
+        target.path.write_bytes(response.content)
+        return target.path
 
     def download_pdf(self, paper_id: str, save_path: str) -> str:
         """
@@ -294,19 +306,8 @@ class SemanticSearcher(PaperSource):
             paper = self.get_paper_details(paper_id)
             if not paper or not paper.pdf_url:
                 return f"Error: Could not find PDF URL for paper {paper_id}"
-            pdf_url = paper.pdf_url
-            pdf_response = requests.get(pdf_url, timeout=30)
-            pdf_response.raise_for_status()
-            
-            # Create download directory if it doesn't exist
-            os.makedirs(save_path, exist_ok=True)
-            
-            filename = f"semantic_{paper_id.replace('/', '_')}.pdf"
-            pdf_path = os.path.join(save_path, filename)
-            
-            with open(pdf_path, "wb") as f:
-                f.write(pdf_response.content)
-            return pdf_path
+            pdf_path = self._download_pdf_file(paper, save_path)
+            return str(pdf_path)
         except Exception as e:
             logger.error(f"PDF download error: {e}")
             return f"Error downloading PDF: {e}"
@@ -331,26 +332,12 @@ class SemanticSearcher(PaperSource):
             str: Extracted text from the PDF or error message
         """
         try:
-            # First get paper details to get the PDF URL
             paper = self.get_paper_details(paper_id)
             if not paper or not paper.pdf_url:
                 return f"Error: Could not find PDF URL for paper {paper_id}"
 
-            # Download the PDF
-            pdf_response = requests.get(paper.pdf_url, timeout=30)
-            pdf_response.raise_for_status()
+            pdf_path = self._download_pdf_file(paper, save_path)
 
-            # Create download directory if it doesn't exist
-            os.makedirs(save_path, exist_ok=True)
-
-            # Save the PDF
-            filename = f"semantic_{paper_id.replace('/', '_')}.pdf"
-            pdf_path = os.path.join(save_path, filename)
-
-            with open(pdf_path, "wb") as f:
-                f.write(pdf_response.content)
-
-            # Extract text using PyPDF2
             reader = PdfReader(pdf_path)
             text = ""
 
@@ -407,29 +394,13 @@ class SemanticSearcher(PaperSource):
             Paper: Detailed paper object with full metadata
         """
         try:
-            fields = ["title", "abstract", "year", "citationCount", "authors", "url","publicationDate","externalIds","fieldsOfStudy"]
             params = {
-                "fields": ",".join(fields),
+                "fields": ",".join(self._paper_fields()),
             }
-            
-            response = self.request_api(f"paper/{paper_id}", params)
-            
-            # Check for errors
-            if isinstance(response, dict) and "error" in response:
-                error_msg = response.get("message", "Unknown error")
-                if response.get("error") == "rate_limited":
-                    logger.error(f"Rate limited by Semantic Scholar API: {error_msg}")
-                else:
-                    logger.error(f"Semantic Scholar API error: {error_msg}")
+            results = self.request_api(f"paper/{paper_id}", params)
+            if results is None:
                 return None
-            
-            # Check response status code
-            if not hasattr(response, 'status_code') or response.status_code != 200:
-                status_code = getattr(response, 'status_code', 'unknown')
-                logger.error(f"Semantic Scholar paper details fetch failed with status {status_code}")
-                return None
-                
-            results = response.json()
+
             paper = self._parse_paper(results)
             if paper:
                 return paper

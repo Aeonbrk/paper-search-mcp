@@ -1,11 +1,14 @@
 # paper_search_mcp/sources/arxiv.py
 from typing import List
 from datetime import datetime
-import requests
 import feedparser
 from ..paper import Paper
 from PyPDF2 import PdfReader
-import os
+from pathlib import Path
+import requests
+
+from .._http import DEFAULT_TIMEOUT, build_session
+from .._paths import resolve_download_target
 
 class PaperSource:
     """Abstract base class for paper sources"""
@@ -22,6 +25,10 @@ class ArxivSearcher(PaperSource):
     """Searcher for arXiv papers"""
     BASE_URL = "http://export.arxiv.org/api/query"
 
+    def __init__(self):
+        self.session = build_session()
+        self.timeout = DEFAULT_TIMEOUT
+
     def search(self, query: str, max_results: int = 10) -> List[Paper]:
         params = {
             'search_query': query,
@@ -29,7 +36,12 @@ class ArxivSearcher(PaperSource):
             'sortBy': 'submittedDate',
             'sortOrder': 'descending'
         }
-        response = requests.get(self.BASE_URL, params=params)
+        try:
+            response = self.session.get(self.BASE_URL, params=params, timeout=self.timeout)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            print(f"Error fetching arXiv results: {e}")
+            return []
         feed = feedparser.parse(response.content)
         papers = []
         for entry in feed.entries:
@@ -58,11 +70,20 @@ class ArxivSearcher(PaperSource):
 
     def download_pdf(self, paper_id: str, save_path: str) -> str:
         pdf_url = f"https://arxiv.org/pdf/{paper_id}.pdf"
-        response = requests.get(pdf_url)
-        output_file = f"{save_path}/{paper_id}.pdf"
-        with open(output_file, 'wb') as f:
-            f.write(response.content)
-        return output_file
+        target = resolve_download_target(filename=f"{paper_id}.pdf", save_path=save_path)
+
+        try:
+            response = self.session.get(pdf_url, timeout=self.timeout, stream=True)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            raise RuntimeError(f"Failed to download arXiv PDF for {paper_id}: {e}") from e
+
+        with open(target.path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=1024 * 64):
+                if chunk:
+                    f.write(chunk)
+
+        return str(target.path)
 
     def read_paper(self, paper_id: str, save_path: str = "./downloads") -> str:
         """Read a paper and convert it to text format.
@@ -74,14 +95,14 @@ class ArxivSearcher(PaperSource):
         Returns:
             str: The extracted text content of the paper
         """
-        # First ensure we have the PDF
-        pdf_path = f"{save_path}/{paper_id}.pdf"
-        if not os.path.exists(pdf_path):
-            pdf_path = self.download_pdf(paper_id, save_path)
+        target = resolve_download_target(filename=f"{paper_id}.pdf", save_path=save_path)
+        pdf_path = target.path
+        if not pdf_path.exists():
+            pdf_path = Path(self.download_pdf(paper_id, save_path))
         
         # Read the PDF
         try:
-            reader = PdfReader(pdf_path)
+            reader = PdfReader(str(pdf_path))
             text = ""
             
             # Extract text from each page

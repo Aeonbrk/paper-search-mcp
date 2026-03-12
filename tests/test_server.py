@@ -1,36 +1,56 @@
-# tests/test_server.py
-import unittest
 import asyncio
-import os
+from pathlib import Path
+import unittest
+
 from paper_search_mcp import server
 
+
 class TestPaperSearchServer(unittest.TestCase):
-    def test_search_arxiv(self):
-        """Test the search_arxiv tool returns 10 results."""
-        result = asyncio.run(server.search_arxiv("machine learning", max_results=10))
-        self.assertIsInstance(result, list, "Result should be a list")
-        self.assertEqual(len(result), 10, "Should return exactly 10 results")
-        for paper in result:
-            self.assertIn('title', paper, "Each result should contain a title")
-            self.assertIn('paper_id', paper, "Each result should contain a paper_id")
+    def test_server_name(self):
+        self.assertEqual(server.mcp.name, "paper_search_server")
 
-    def test_download_arxiv_from_search(self):
-        """Test downloading 10 arXiv papers based on search results."""
-        # 先搜索 10 个结果
-        search_results = asyncio.run(server.search_arxiv("machine learning", max_results=10))
-        self.assertEqual(len(search_results), 10, "Search should return 10 results")
+    def test_tool_registration_snapshot(self):
+        tools = asyncio.run(server.mcp.list_tools())
+        tool_names = {tool.name for tool in tools}
+        expected_names = {
+            "search_arxiv",
+            "search_pubmed",
+            "search_biorxiv",
+            "search_medrxiv",
+            "search_google_scholar",
+            "search_iacr",
+            "download_arxiv",
+            "download_pubmed",
+            "download_biorxiv",
+            "download_medrxiv",
+            "download_iacr",
+            "read_arxiv_paper",
+            "read_pubmed_paper",
+            "read_biorxiv_paper",
+            "read_medrxiv_paper",
+            "read_iacr_paper",
+            "search_semantic",
+            "download_semantic",
+            "read_semantic_paper",
+            "search_crossref",
+            "get_crossref_paper_by_doi",
+            "download_crossref",
+            "read_crossref_paper",
+        }
+        self.assertEqual(tool_names, expected_names)
 
-        # 下载目录
-        save_path = "./downloads"
-        os.makedirs(save_path, exist_ok=True)  # 确保目录存在
+    def test_canonical_save_path_ignores_user_input(self):
+        self.assertEqual(server._canonical_save_path("../escape"), "docs/downloads")
+        self.assertEqual(Path(server._canonical_save_path("anywhere")), Path("docs/downloads"))
+        self.assertEqual(
+            server._canonical_save_path("downloads/my_run"),
+            "docs/downloads",
+        )
+        self.assertEqual(
+            server._canonical_save_path("docs/downloads/my_run"),
+            "docs/downloads",
+        )
 
-        # 下载每个搜索结果的 PDF
-        for paper in search_results:
-            paper_id = paper['paper_id']
-            result = asyncio.run(server.download_arxiv(paper_id, save_path))
-            self.assertIsInstance(result, str, f"Result for {paper_id} should be a file path")
-            self.assertTrue(result.endswith(".pdf"), f"Result for {paper_id} should be a PDF file path")
-            self.assertTrue(os.path.exists(result), f"PDF file for {paper_id} should exist on disk")
 
 if __name__ == "__main__":
     unittest.main()

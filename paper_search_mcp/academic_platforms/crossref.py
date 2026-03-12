@@ -2,9 +2,8 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 import requests
-import time
-import random
 from ..paper import Paper
+from .._http import DEFAULT_TIMEOUT, RetryPolicy, build_session, request_with_retries
 import logging
 
 logger = logging.getLogger(__name__)
@@ -29,11 +28,10 @@ class CrossRefSearcher(PaperSource):
     USER_AGENT = "paper-search-mcp/0.1.3 (https://github.com/Dragonatorul/paper-search-mcp; mailto:paper-search@example.org)"
     
     def __init__(self):
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': self.USER_AGENT,
-            'Accept': 'application/json'
-        })
+        self.session = build_session(
+            user_agent=self.USER_AGENT,
+            headers={"Accept": "application/json"},
+        )
     
     def search(self, query: str, max_results: int = 10, **kwargs) -> List[Paper]:
         """
@@ -48,6 +46,12 @@ class CrossRefSearcher(PaperSource):
             List of Paper objects
         """
         try:
+            retry_policy = RetryPolicy(
+                max_retries=2,
+                backoff_base_seconds=2.0,
+                backoff_factor=2.0,
+                backoff_max_seconds=10.0,
+            )
             params = {
                 'query': query,
                 'rows': min(max_results, 1000),  # CrossRef API max is 1000
@@ -67,13 +71,14 @@ class CrossRefSearcher(PaperSource):
             params['mailto'] = 'paper-search@example.org'
             
             url = f"{self.BASE_URL}/works"
-            response = self.session.get(url, params=params, timeout=30)
-            
-            if response.status_code == 429:
-                # Rate limited - wait and retry once
-                logger.warning("Rate limited by CrossRef API, waiting 2 seconds...")
-                time.sleep(2)
-                response = self.session.get(url, params=params, timeout=30)
+            response = request_with_retries(
+                self.session,
+                "GET",
+                url,
+                params=params,
+                timeout=DEFAULT_TIMEOUT,
+                retry_policy=retry_policy,
+            )
             
             response.raise_for_status()
             data = response.json()
@@ -280,10 +285,23 @@ class CrossRefSearcher(PaperSource):
             Paper object if found, None otherwise
         """
         try:
+            retry_policy = RetryPolicy(
+                max_retries=2,
+                backoff_base_seconds=2.0,
+                backoff_factor=2.0,
+                backoff_max_seconds=10.0,
+            )
             url = f"{self.BASE_URL}/works/{doi}"
             params = {'mailto': 'paper-search@example.org'}
             
-            response = self.session.get(url, params=params, timeout=30)
+            response = request_with_retries(
+                self.session,
+                "GET",
+                url,
+                params=params,
+                timeout=DEFAULT_TIMEOUT,
+                retry_policy=retry_policy,
+            )
             
             if response.status_code == 404:
                 logger.warning(f"DOI not found in CrossRef: {doi}")

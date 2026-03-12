@@ -1,61 +1,61 @@
-import unittest
 import os
+from pathlib import Path
+import shutil
+import unittest
+
 import requests
+
 from paper_search_mcp.academic_platforms.medrxiv import MedRxivSearcher
 
+
+LIVE_TESTS_ENABLED = os.getenv("PAPER_SEARCH_LIVE_TESTS") == "1"
+
+
 def check_api_accessible():
-    """检查 medRxiv API 是否可访问"""
     try:
-        response = requests.get("https://api.medRxiv.org/details/medrxiv/0/1", timeout=5)
+        response = requests.get("https://api.medrxiv.org/details/medrxiv/0/1", timeout=5)
         return response.status_code == 200
-    except:
+    except requests.RequestException:
         return False
+
 
 class TestMedRxivSearcher(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.api_accessible = check_api_accessible()
-        if not cls.api_accessible:
-            print("\nWarning: medRxiv API is not accessible, some tests will be skipped")
+        cls.api_accessible = LIVE_TESTS_ENABLED and check_api_accessible()
 
     def setUp(self):
         self.searcher = MedRxivSearcher()
 
-    def test_search(self):
+    def _require_live_access(self):
+        if not LIVE_TESTS_ENABLED:
+            self.skipTest("Set PAPER_SEARCH_LIVE_TESTS=1 to run live medRxiv tests")
         if not self.api_accessible:
             self.skipTest("medRxiv API is not accessible")
-        
+
+    def test_search(self):
+        self._require_live_access()
         papers = self.searcher.search("machine learning", max_results=10)
-        print(f"Found {len(papers)} papers for query 'machine learning':")
-        for i, paper in enumerate(papers, 1):
-            print(f"{i}. {paper.title} (ID: {paper.paper_id})")
         self.assertTrue(len(papers) > 0)
         self.assertTrue(papers[0].title)
 
     def test_download_and_read(self):
-        if not self.api_accessible:
-            self.skipTest("medRxiv API is not accessible")
-            
+        self._require_live_access()
         papers = self.searcher.search("machine learning", max_results=1)
         if not papers:
             self.skipTest("No papers found for testing download")
-            
-        save_path = "./downloads"
-        os.makedirs(save_path, exist_ok=True)
-        paper = papers[0]
-        pdf_path = None
-        
+
+        save_path = "test_medrxiv_live"
         try:
-            pdf_path = self.searcher.download_pdf(paper.paper_id, save_path)
+            pdf_path = self.searcher.download_pdf(papers[0].paper_id, save_path)
             self.assertTrue(os.path.exists(pdf_path))
-            
-            text_content = self.searcher.read_paper(paper.paper_id, save_path)
+            text_content = self.searcher.read_paper(papers[0].paper_id, save_path)
             self.assertTrue(len(text_content) > 0)
         finally:
-            if pdf_path and os.path.exists(pdf_path):
-                os.remove(pdf_path)
-            if os.path.exists(save_path):
-                os.rmdir(save_path)
+            output_dir = Path("docs/downloads") / save_path
+            if output_dir.exists():
+                shutil.rmtree(output_dir, ignore_errors=True)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

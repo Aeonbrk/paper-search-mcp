@@ -1,7 +1,9 @@
 # paper_search_mcp/server.py
-from typing import List, Dict, Optional
-import httpx
+import asyncio
+from typing import Any, Callable, Dict, List, Optional, Type
+
 from mcp.server.fastmcp import FastMCP
+
 from .academic_platforms.arxiv import ArxivSearcher
 from .academic_platforms.pubmed import PubMedSearcher
 from .academic_platforms.biorxiv import BioRxivSearcher
@@ -12,32 +14,49 @@ from .academic_platforms.semantic import SemanticSearcher
 from .academic_platforms.crossref import CrossRefSearcher
 
 # from .academic_platforms.hub import SciHubSearcher
-from .paper import Paper
+from ._paths import resolve_download_target
 
 # Initialize MCP server
 mcp = FastMCP("paper_search_server")
 
-# Instances of searchers
-arxiv_searcher = ArxivSearcher()
-pubmed_searcher = PubMedSearcher()
-biorxiv_searcher = BioRxivSearcher()
-medrxiv_searcher = MedRxivSearcher()
-google_scholar_searcher = GoogleScholarSearcher()
-iacr_searcher = IACRSearcher()
-semantic_searcher = SemanticSearcher()
-crossref_searcher = CrossRefSearcher()
-# scihub_searcher = SciHubSearcher()
+_MAX_CONCURRENT_TOOL_CALLS = 8
+_TOOL_SEMAPHORE = asyncio.Semaphore(_MAX_CONCURRENT_TOOL_CALLS)
 
 
-# Asynchronous helper to adapt synchronous searchers
-async def async_search(searcher, query: str, max_results: int, **kwargs) -> List[Dict]:
-    async with httpx.AsyncClient() as client:
-        # Assuming searchers use requests internally; we'll call synchronously for now
-        if 'year' in kwargs:
-            papers = searcher.search(query, year=kwargs['year'], max_results=max_results)
-        else:
-            papers = searcher.search(query, max_results=max_results)
-        return [paper.to_dict() for paper in papers]
+_CANONICAL_SAVE_PATH = "docs/downloads"
+
+
+def _canonical_save_path(_: str) -> str:
+    resolve_download_target(filename="paper.pdf", save_path=_CANONICAL_SAVE_PATH)
+    return _CANONICAL_SAVE_PATH
+
+
+async def _run_sync(callable_: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
+    async with _TOOL_SEMAPHORE:
+        return await asyncio.to_thread(callable_, *args, **kwargs)
+
+
+def _search_sync(
+    searcher_cls: Type[Any], query: str, max_results: int, kwargs: Optional[Dict[str, Any]] = None
+) -> List[Dict]:
+    searcher = searcher_cls()
+    if kwargs:
+        papers = searcher.search(query, max_results=max_results, **kwargs)
+    else:
+        papers = searcher.search(query, max_results=max_results)
+    return [paper.to_dict() for paper in papers]
+
+
+def _download_sync(searcher_cls: Type[Any], paper_id: str, save_path: str) -> str:
+    save_dir = _canonical_save_path(save_path)
+    searcher = searcher_cls()
+    return searcher.download_pdf(paper_id, save_dir)
+
+
+def _read_sync(searcher_cls: Type[Any], paper_id: str, save_path: str) -> str:
+    save_dir = _canonical_save_path(save_path)
+    searcher = searcher_cls()
+    return searcher.read_paper(paper_id, save_dir)
 
 
 # Tool definitions
@@ -51,8 +70,7 @@ async def search_arxiv(query: str, max_results: int = 10) -> List[Dict]:
     Returns:
         List of paper metadata in dictionary format.
     """
-    papers = await async_search(arxiv_searcher, query, max_results)
-    return papers if papers else []
+    return await _run_sync(_search_sync, ArxivSearcher, query, max_results)
 
 
 @mcp.tool()
@@ -65,8 +83,7 @@ async def search_pubmed(query: str, max_results: int = 10) -> List[Dict]:
     Returns:
         List of paper metadata in dictionary format.
     """
-    papers = await async_search(pubmed_searcher, query, max_results)
-    return papers if papers else []
+    return await _run_sync(_search_sync, PubMedSearcher, query, max_results)
 
 
 @mcp.tool()
@@ -79,8 +96,7 @@ async def search_biorxiv(query: str, max_results: int = 10) -> List[Dict]:
     Returns:
         List of paper metadata in dictionary format.
     """
-    papers = await async_search(biorxiv_searcher, query, max_results)
-    return papers if papers else []
+    return await _run_sync(_search_sync, BioRxivSearcher, query, max_results)
 
 
 @mcp.tool()
@@ -93,8 +109,7 @@ async def search_medrxiv(query: str, max_results: int = 10) -> List[Dict]:
     Returns:
         List of paper metadata in dictionary format.
     """
-    papers = await async_search(medrxiv_searcher, query, max_results)
-    return papers if papers else []
+    return await _run_sync(_search_sync, MedRxivSearcher, query, max_results)
 
 
 @mcp.tool()
@@ -107,8 +122,7 @@ async def search_google_scholar(query: str, max_results: int = 10) -> List[Dict]
     Returns:
         List of paper metadata in dictionary format.
     """
-    papers = await async_search(google_scholar_searcher, query, max_results)
-    return papers if papers else []
+    return await _run_sync(_search_sync, GoogleScholarSearcher, query, max_results)
 
 
 @mcp.tool()
@@ -124,9 +138,12 @@ async def search_iacr(
     Returns:
         List of paper metadata in dictionary format.
     """
-    async with httpx.AsyncClient() as client:
-        papers = iacr_searcher.search(query, max_results, fetch_details)
+    def _search_iacr_sync() -> List[Dict]:
+        searcher = IACRSearcher()
+        papers = searcher.search(query, max_results, fetch_details)
         return [paper.to_dict() for paper in papers] if papers else []
+
+    return await _run_sync(_search_iacr_sync)
 
 
 @mcp.tool()
@@ -135,12 +152,12 @@ async def download_arxiv(paper_id: str, save_path: str = "./downloads") -> str:
 
     Args:
         paper_id: arXiv paper ID (e.g., '2106.12345').
-        save_path: Directory to save the PDF (default: './downloads').
+        save_path: Compatibility parameter. MCP tools always write under
+            `docs/downloads`; custom values do not change the output directory.
     Returns:
         Path to the downloaded PDF file.
     """
-    async with httpx.AsyncClient() as client:
-        return arxiv_searcher.download_pdf(paper_id, save_path)
+    return await _run_sync(_download_sync, ArxivSearcher, paper_id, save_path)
 
 
 @mcp.tool()
@@ -149,12 +166,13 @@ async def download_pubmed(paper_id: str, save_path: str = "./downloads") -> str:
 
     Args:
         paper_id: PubMed ID (PMID).
-        save_path: Directory to save the PDF (default: './downloads').
+        save_path: Compatibility parameter. MCP tools always write under
+            `docs/downloads`; custom values do not change the output directory.
     Returns:
         str: Message indicating that direct PDF download is not supported.
     """
     try:
-        return pubmed_searcher.download_pdf(paper_id, save_path)
+        return await _run_sync(_download_sync, PubMedSearcher, paper_id, save_path)
     except NotImplementedError as e:
         return str(e)
 
@@ -165,11 +183,12 @@ async def download_biorxiv(paper_id: str, save_path: str = "./downloads") -> str
 
     Args:
         paper_id: bioRxiv DOI.
-        save_path: Directory to save the PDF (default: './downloads').
+        save_path: Compatibility parameter. MCP tools always write under
+            `docs/downloads`; custom values do not change the output directory.
     Returns:
         Path to the downloaded PDF file.
     """
-    return biorxiv_searcher.download_pdf(paper_id, save_path)
+    return await _run_sync(_download_sync, BioRxivSearcher, paper_id, save_path)
 
 
 @mcp.tool()
@@ -178,11 +197,12 @@ async def download_medrxiv(paper_id: str, save_path: str = "./downloads") -> str
 
     Args:
         paper_id: medRxiv DOI.
-        save_path: Directory to save the PDF (default: './downloads').
+        save_path: Compatibility parameter. MCP tools always write under
+            `docs/downloads`; custom values do not change the output directory.
     Returns:
         Path to the downloaded PDF file.
     """
-    return medrxiv_searcher.download_pdf(paper_id, save_path)
+    return await _run_sync(_download_sync, MedRxivSearcher, paper_id, save_path)
 
 
 @mcp.tool()
@@ -191,11 +211,12 @@ async def download_iacr(paper_id: str, save_path: str = "./downloads") -> str:
 
     Args:
         paper_id: IACR paper ID (e.g., '2009/101').
-        save_path: Directory to save the PDF (default: './downloads').
+        save_path: Compatibility parameter. MCP tools always write under
+            `docs/downloads`; custom values do not change the output directory.
     Returns:
         Path to the downloaded PDF file.
     """
-    return iacr_searcher.download_pdf(paper_id, save_path)
+    return await _run_sync(_download_sync, IACRSearcher, paper_id, save_path)
 
 
 @mcp.tool()
@@ -204,12 +225,14 @@ async def read_arxiv_paper(paper_id: str, save_path: str = "./downloads") -> str
 
     Args:
         paper_id: arXiv paper ID (e.g., '2106.12345').
-        save_path: Directory where the PDF is/will be saved (default: './downloads').
+        save_path: Compatibility parameter. MCP tools always use
+            `docs/downloads`; custom values do not change the read/download
+            directory.
     Returns:
         str: The extracted text content of the paper.
     """
     try:
-        return arxiv_searcher.read_paper(paper_id, save_path)
+        return await _run_sync(_read_sync, ArxivSearcher, paper_id, save_path)
     except Exception as e:
         print(f"Error reading paper {paper_id}: {e}")
         return ""
@@ -221,11 +244,13 @@ async def read_pubmed_paper(paper_id: str, save_path: str = "./downloads") -> st
 
     Args:
         paper_id: PubMed ID (PMID).
-        save_path: Directory where the PDF would be saved (unused).
+        save_path: Compatibility parameter. MCP tools always use
+            `docs/downloads`; custom values do not change the read/download
+            directory.
     Returns:
         str: Message indicating that direct paper reading is not supported.
     """
-    return pubmed_searcher.read_paper(paper_id, save_path)
+    return await _run_sync(_read_sync, PubMedSearcher, paper_id, save_path)
 
 
 @mcp.tool()
@@ -234,12 +259,14 @@ async def read_biorxiv_paper(paper_id: str, save_path: str = "./downloads") -> s
 
     Args:
         paper_id: bioRxiv DOI.
-        save_path: Directory where the PDF is/will be saved (default: './downloads').
+        save_path: Compatibility parameter. MCP tools always use
+            `docs/downloads`; custom values do not change the read/download
+            directory.
     Returns:
         str: The extracted text content of the paper.
     """
     try:
-        return biorxiv_searcher.read_paper(paper_id, save_path)
+        return await _run_sync(_read_sync, BioRxivSearcher, paper_id, save_path)
     except Exception as e:
         print(f"Error reading paper {paper_id}: {e}")
         return ""
@@ -251,12 +278,14 @@ async def read_medrxiv_paper(paper_id: str, save_path: str = "./downloads") -> s
 
     Args:
         paper_id: medRxiv DOI.
-        save_path: Directory where the PDF is/will be saved (default: './downloads').
+        save_path: Compatibility parameter. MCP tools always use
+            `docs/downloads`; custom values do not change the read/download
+            directory.
     Returns:
         str: The extracted text content of the paper.
     """
     try:
-        return medrxiv_searcher.read_paper(paper_id, save_path)
+        return await _run_sync(_read_sync, MedRxivSearcher, paper_id, save_path)
     except Exception as e:
         print(f"Error reading paper {paper_id}: {e}")
         return ""
@@ -268,12 +297,14 @@ async def read_iacr_paper(paper_id: str, save_path: str = "./downloads") -> str:
 
     Args:
         paper_id: IACR paper ID (e.g., '2009/101').
-        save_path: Directory where the PDF is/will be saved (default: './downloads').
+        save_path: Compatibility parameter. MCP tools always use
+            `docs/downloads`; custom values do not change the read/download
+            directory.
     Returns:
         str: The extracted text content of the paper.
     """
     try:
-        return iacr_searcher.read_paper(paper_id, save_path)
+        return await _run_sync(_read_sync, IACRSearcher, paper_id, save_path)
     except Exception as e:
         print(f"Error reading paper {paper_id}: {e}")
         return ""
@@ -290,11 +321,10 @@ async def search_semantic(query: str, year: Optional[str] = None, max_results: i
     Returns:
         List of paper metadata in dictionary format.
     """
-    kwargs = {}
+    kwargs: Dict[str, Any] = {}
     if year is not None:
-        kwargs['year'] = year
-    papers = await async_search(semantic_searcher, query, max_results, **kwargs)
-    return papers if papers else []
+        kwargs["year"] = year
+    return await _run_sync(_search_sync, SemanticSearcher, query, max_results, kwargs)
 
 
 @mcp.tool()
@@ -311,11 +341,12 @@ async def download_semantic(paper_id: str, save_path: str = "./downloads") -> st
             - PMID:<id> (e.g., "PMID:19872477")
             - PMCID:<id> (e.g., "PMCID:2323736")
             - URL:<url> (e.g., "URL:https://arxiv.org/abs/2106.15928v1")
-        save_path: Directory to save the PDF (default: './downloads').
+        save_path: Compatibility parameter. MCP tools always write under
+            `docs/downloads`; custom values do not change the output directory.
     Returns:
         Path to the downloaded PDF file.
     """ 
-    return semantic_searcher.download_pdf(paper_id, save_path)
+    return await _run_sync(_download_sync, SemanticSearcher, paper_id, save_path)
 
 
 @mcp.tool()
@@ -332,12 +363,14 @@ async def read_semantic_paper(paper_id: str, save_path: str = "./downloads") -> 
             - PMID:<id> (e.g., "PMID:19872477")
             - PMCID:<id> (e.g., "PMCID:2323736")
             - URL:<url> (e.g., "URL:https://arxiv.org/abs/2106.15928v1")
-        save_path: Directory where the PDF is/will be saved (default: './downloads').
+        save_path: Compatibility parameter. MCP tools always use
+            `docs/downloads`; custom values do not change the read/download
+            directory.
     Returns:
         str: The extracted text content of the paper.
     """
     try:
-        return semantic_searcher.read_paper(paper_id, save_path)
+        return await _run_sync(_read_sync, SemanticSearcher, paper_id, save_path)
     except Exception as e:
         print(f"Error reading paper {paper_id}: {e}")
         return ""
@@ -372,8 +405,7 @@ async def search_crossref(query: str, max_results: int = 10, **kwargs) -> List[D
         # Search sorted by publication date
         search_crossref("neural networks", 15, sort="published", order="desc")
     """
-    papers = await async_search(crossref_searcher, query, max_results, **kwargs)
-    return papers if papers else []
+    return await _run_sync(_search_sync, CrossRefSearcher, query, max_results, dict(kwargs))
 
 
 @mcp.tool()
@@ -388,9 +420,12 @@ async def get_crossref_paper_by_doi(doi: str) -> Dict:
     Example:
         get_crossref_paper_by_doi("10.1038/nature12373")
     """
-    async with httpx.AsyncClient() as client:
-        paper = crossref_searcher.get_paper_by_doi(doi)
+    def _get_crossref_paper_by_doi_sync() -> Dict:
+        searcher = CrossRefSearcher()
+        paper = searcher.get_paper_by_doi(doi)
         return paper.to_dict() if paper else {}
+
+    return await _run_sync(_get_crossref_paper_by_doi_sync)
 
 
 @mcp.tool()
@@ -399,7 +434,8 @@ async def download_crossref(paper_id: str, save_path: str = "./downloads") -> st
 
     Args:
         paper_id: CrossRef DOI (e.g., '10.1038/nature12373').
-        save_path: Directory to save the PDF (default: './downloads').
+        save_path: Compatibility parameter. MCP tools always write under
+            `docs/downloads`; custom values do not change the output directory.
     Returns:
         str: Message indicating that direct PDF download is not supported.
         
@@ -408,7 +444,7 @@ async def download_crossref(paper_id: str, save_path: str = "./downloads") -> st
         Use the DOI to access the paper through the publisher's website.
     """
     try:
-        return crossref_searcher.download_pdf(paper_id, save_path)
+        return await _run_sync(_download_sync, CrossRefSearcher, paper_id, save_path)
     except NotImplementedError as e:
         return str(e)
 
@@ -419,7 +455,9 @@ async def read_crossref_paper(paper_id: str, save_path: str = "./downloads") -> 
 
     Args:
         paper_id: CrossRef DOI (e.g., '10.1038/nature12373').
-        save_path: Directory where the PDF is/will be saved (default: './downloads').
+        save_path: Compatibility parameter. MCP tools always use
+            `docs/downloads`; custom values do not change the read/download
+            directory.
     Returns:
         str: Message indicating that direct paper reading is not supported.
         
@@ -427,7 +465,7 @@ async def read_crossref_paper(paper_id: str, save_path: str = "./downloads") -> 
         CrossRef is a citation database and doesn't provide direct paper content.
         Use the DOI to access the paper through the publisher's website.
     """
-    return crossref_searcher.read_paper(paper_id, save_path)
+    return await _run_sync(_read_sync, CrossRefSearcher, paper_id, save_path)
 
 
 if __name__ == "__main__":
