@@ -136,7 +136,7 @@ if __name__ == "__main__":
         paper_id = papers[0].paper_id
         save_path = "./downloads"  # 确保此目录存在
         try:
-            os.makedirs(save_path, exist_ok=True)
+            Path(save_path).mkdir(parents=True, exist_ok=True)
             pdf_path = searcher.download_pdf(paper_id, save_path)
             print(f"PDF downloaded successfully: {pdf_path}")
         except Exception as e:
