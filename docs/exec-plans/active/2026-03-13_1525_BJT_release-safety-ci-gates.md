@@ -270,8 +270,10 @@ validation: git status -sb
 validation: git diff --name-only
 validation: git diff --name-only --cached
 status: done
-log: (orchestrator) committed `a96569b` ("Release: add CI + publish test gate").
-log: (orchestrator) pushed to `origin/main`; workspace clean after push.
+log: (orchestrator) committed `a96569b` ("Release: add CI + publish test gate")
+  and pushed to `origin/main`.
+log: (orchestrator) committed `19c32a8` ("Docs: update ExecPlan status after CI")
+  and pushed to `origin/main` (plan bookkeeping).
 files_changed: .git/
 
 ### T8: Verify CI Is Green On The Pushed Commit
@@ -287,6 +289,7 @@ validation: (manual) GitHub Actions UI shows the `CI` workflow succeeded for the
   commit on `main`.
 status: done
 log: (orchestrator) `CI` succeeded for commit `a96569b` (run `23049345726`).
+log: (orchestrator) `CI` succeeded for commit `19c32a8` (run `23049406422`).
 log: (orchestrator) note: GitHub Actions reported a Node 20 deprecation warning
   for some actions, but the workflow run succeeded.
 
