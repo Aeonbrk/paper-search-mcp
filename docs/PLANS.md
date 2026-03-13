@@ -17,7 +17,25 @@ detail in `docs/exec-plans/`.
 
 ## Active
 
-- None currently.
+### Release: CI + publish test gates + version bump
+
+- Status: active
+- Mode: swarm_waves
+- Difficulty: score=6 level=Medium
+  rationale="Touches GitHub Actions workflows plus the release/tagging flow;
+  bounded but affects publishing safety."
+- Rationale: Ship PMC support safely by gating PyPI publish on offline tests and
+  adding CI coverage for the same gate.
+- ExecPlan:
+  `docs/exec-plans/active/2026-03-13_1525_BJT_release-safety-ci-gates.md`
+- Evidence: `.github/workflows/publish.yml` gated on offline tests; new
+  `.github/workflows/ci.yml` added; `pyproject.toml` bumped to `0.1.4`;
+  `uv sync --locked` passed; `markdownlint README.md $(find docs -type f -name
+  '*.md' | sort)` passed; `PAPER_SEARCH_LIVE_TESTS=0 uv run python -m unittest
+  discover -q` passed (`OK (skipped=25)`).
+- Next steps: Commit and push to `origin/main`, verify the `CI` workflow is
+  green on that commit, then tag and push `v0.1.4` and verify publish + PyPI.
+- Last updated: 2026-03-13
 
 ## Completed
 
