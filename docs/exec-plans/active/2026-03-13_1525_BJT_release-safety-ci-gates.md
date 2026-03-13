@@ -60,6 +60,11 @@ Assumptions (explicit):
   `Updated paper-search-mcp v0.1.3 -> v0.1.4`, and the next `uv sync --locked`
   succeeded.
 
+- Observation: PyPI publish failed due to missing/mismatched trusted publisher
+  configuration (`invalid-publisher`).
+  Evidence: GitHub Actions run `23049544270` failed during `Publish to PyPI`;
+  PyPI JSON still reports latest version `0.1.3` (no `0.1.4`).
+
 ## Decision Log
 
 - Decision: proceed with both publish-gating and CI workflow
@@ -306,7 +311,9 @@ acceptance: Local tag `v0.1.4` points at the intended commit.
 acceptance: Remote tag `v0.1.4` exists on `origin`.
 validation: git show-ref --tags v0.1.4
 validation: git ls-remote --tags origin v0.1.4
-status: planned
+status: done
+log: (orchestrator) created local tag `v0.1.4` at commit `070a135`.
+log: (orchestrator) pushed `v0.1.4` to `origin` (triggers publish workflow).
 
 ### T10: Verify Publish Workflow And PyPI Release
 
@@ -320,7 +327,13 @@ acceptance: GitHub Actions `Publish to PyPI` workflow is green for tag `v0.1.4`.
 acceptance: PyPI has version `0.1.4` available for `paper-search-mcp`.
 validation: (manual) GitHub Actions UI shows the tag workflow succeeded and PyPI
   lists version 0.1.4.
-status: planned
+status: blocked
+log: (orchestrator) publish workflow failed for tag `v0.1.4` (run `23049544270`):
+  trusted publishing exchange failure `invalid-publisher`.
+log: (orchestrator) PyPI JSON still reports latest `0.1.3` for `paper-search-mcp`.
+log: (orchestrator) unblock by configuring a matching PyPI trusted publisher for
+  repo `Aeonbrk/paper-search-mcp` + workflow `.github/workflows/publish.yml` +
+  environment `pypi`, then re-run the failed GitHub Actions run.
 
 ## Plan of Work
 
