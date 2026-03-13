@@ -32,9 +32,11 @@ detail in `docs/exec-plans/`.
   `.github/workflows/ci.yml` added; `pyproject.toml` bumped to `0.1.4`;
   `uv sync --locked` passed; `markdownlint README.md $(find docs -type f -name
   '*.md' | sort)` passed; `PAPER_SEARCH_LIVE_TESTS=0 uv run python -m unittest
-  discover -q` passed (`OK (skipped=25)`).
-- Next steps: Commit and push to `origin/main`, verify the `CI` workflow is
-  green on that commit, then tag and push `v0.1.4` and verify publish + PyPI.
+  discover -q` passed (`OK (skipped=25)`); tag `v0.1.4` pushed; publish run
+  failed with `invalid-publisher` (trusted publisher not configured).
+- Next steps: Configure a matching PyPI trusted publisher (repo
+  `Aeonbrk/paper-search-mcp`, workflow `.github/workflows/publish.yml`,
+  environment `pypi`), then re-run the failed publish workflow for tag `v0.1.4`.
 - Last updated: 2026-03-13
 
 ## Completed
