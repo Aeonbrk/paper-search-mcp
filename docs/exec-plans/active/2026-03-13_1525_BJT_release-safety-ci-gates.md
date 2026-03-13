@@ -269,7 +269,10 @@ acceptance: `origin/main` points at the new commit and the workspace is clean
 validation: git status -sb
 validation: git diff --name-only
 validation: git diff --name-only --cached
-status: planned
+status: done
+log: (orchestrator) committed `a96569b` ("Release: add CI + publish test gate").
+log: (orchestrator) pushed to `origin/main`; workspace clean after push.
+files_changed: .git/
 
 ### T8: Verify CI Is Green On The Pushed Commit
 
@@ -282,7 +285,10 @@ description: Confirm the PR/push CI workflow is green on the pushed commit befor
 acceptance: GitHub Actions CI run for the pushed commit is green.
 validation: (manual) GitHub Actions UI shows the `CI` workflow succeeded for the
   commit on `main`.
-status: planned
+status: done
+log: (orchestrator) `CI` succeeded for commit `a96569b` (run `23049345726`).
+log: (orchestrator) note: GitHub Actions reported a Node 20 deprecation warning
+  for some actions, but the workflow run succeeded.
 
 ### T9: Tag And Push Release Tag
 
