@@ -17,29 +17,30 @@ detail in `docs/exec-plans/`.
 
 ## Active
 
+- None currently.
+
+## Completed
+
 ### Release: CI + publish test gates + version bump
 
-- Status: active
+- Status: completed
 - Mode: swarm_waves
 - Difficulty: score=6 level=Medium
   rationale="Touches GitHub Actions workflows plus the release/tagging flow;
   bounded but affects publishing safety."
-- Rationale: Ship PMC support safely by gating PyPI publish on offline tests and
-  adding CI coverage for the same gate.
+- Rationale: Add safety gates so CI and release workflows fail fast on offline
+  breakage; publishing is optional for fork workflows.
 - ExecPlan:
-  `docs/exec-plans/active/2026-03-13_1525_BJT_release-safety-ci-gates.md`
+  `docs/exec-plans/completed/2026-03-13_1525_BJT_release-safety-ci-gates.md`
 - Evidence: `.github/workflows/publish.yml` gated on offline tests; new
   `.github/workflows/ci.yml` added; `pyproject.toml` bumped to `0.1.4`;
   `uv sync --locked` passed; `markdownlint README.md $(find docs -type f -name
   '*.md' | sort)` passed; `PAPER_SEARCH_LIVE_TESTS=0 uv run python -m unittest
-  discover -q` passed (`OK (skipped=25)`); tag `v0.1.4` pushed; publish run
-  failed with `invalid-publisher` (trusted publisher not configured).
-- Next steps: Configure a matching PyPI trusted publisher (repo
-  `Aeonbrk/paper-search-mcp`, workflow `.github/workflows/publish.yml`,
-  environment `pypi`), then re-run the failed publish workflow for tag `v0.1.4`.
+  discover -q` passed (`OK (skipped=25)`); tag `v0.1.4` pushed; publish is
+  expected to fail on forks unless PyPI trusted publishing is configured.
+- Next steps: none (optional: configure PyPI trusted publishing if/when you
+  actually want to publish from this repo).
 - Last updated: 2026-03-13
-
-## Completed
 
 ### AB: Closeout (merge-ready) + PMC adapter (research + minimal implementation)
 

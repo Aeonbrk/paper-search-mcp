@@ -49,7 +49,7 @@ Assumptions (explicit):
 - [x] (2026-03-13 15:25 BJT) Capture scope, constraints, and acceptance criteria.
 - [x] (2026-03-13 15:25 BJT) Implement the planned changes.
 - [x] (2026-03-13 15:25 BJT) Run validation and record evidence.
-- [ ] (2026-03-13 15:25 BJT) Close review notes and summarize outcomes.
+- [x] (2026-03-13 21:01 BJT) Close review notes and summarize outcomes.
 
 ## Surprises & Discoveries
 
@@ -77,10 +77,29 @@ Assumptions (explicit):
   and offline fixtures with minimal downstream disruption.
   Date/Author: 2026-03-13 / Codex
 
+- Decision: do not unblock PyPI publish for this fork
+  Rationale: this fork is currently used for development only; publishing is not
+  required.
+  Date/Author: 2026-03-13 / oian
+
 ## Outcomes & Retrospective
 
-Summarize what shipped, what did not, and what was learned. Compare the
-result to the purpose above.
+Shipped:
+
+- PR/push `CI` workflow running the offline gate.
+- Publish workflow now blocks on offline tests before build/publish.
+- Version bumped to `0.1.4` with `uv.lock` refreshed.
+
+Not shipped (intentionally for this fork):
+
+- PyPI trusted publisher configuration (publish run fails with
+  `invalid-publisher`).
+
+Notes:
+
+- The safety gates still add value even without publishing: they prevent broken
+  changes from landing on `main` and keep tag releases from building/publishing
+  when offline tests fail.
 
 ## Context and Orientation
 
@@ -100,7 +119,7 @@ Key repo surfaces involved in this change:
 depends_on: []
 reads: [
   docs/PLANS.md,
-  docs/exec-plans/active/2026-03-13_1525_BJT_release-safety-ci-gates.md,
+  docs/exec-plans/completed/2026-03-13_1525_BJT_release-safety-ci-gates.md,
 ]
 writes: [docs/PLANS.md]
 creates: []
@@ -410,7 +429,7 @@ log: (orchestrator) unblock by configuring a matching PyPI trusted publisher for
          .github/workflows/ci.yml \
          docs/playbooks/release.md \
          docs/PLANS.md \
-         docs/exec-plans/active/2026-03-13_1525_BJT_release-safety-ci-gates.md
+         docs/exec-plans/completed/2026-03-13_1525_BJT_release-safety-ci-gates.md
 
    Commit and push:
 
@@ -456,7 +475,8 @@ log: (orchestrator) unblock by configuring a matching PyPI trusted publisher for
 - CI shows green on PR/push for the offline gate.
 - CI is green on the pushed `main` commit before tagging.
 - Tagging `v0.1.4` triggers publish, which runs tests before building/publishing.
-- Publish workflow is green and PyPI shows version `0.1.4`.
+- If publishing is desired: publish workflow should be green and PyPI should
+  show version `0.1.4`.
 
 ## Idempotence and Recovery
 
@@ -470,3 +490,5 @@ log: (orchestrator) unblock by configuring a matching PyPI trusted publisher for
   gates.
 - 2026-03-13 / Codex — Revised after plan review: added `docs/PLANS.md` tracking,
   split commit/tag steps behind CI verification, and tightened validation.
+- 2026-03-13 / Codex — Completed implementation + validation; publish remains
+  optional and is intentionally not unblocked on this fork.
