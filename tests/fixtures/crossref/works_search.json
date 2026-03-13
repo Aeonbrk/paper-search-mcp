@@ -1,0 +1,50 @@
+{
+  "status": "ok",
+  "message-type": "work-list",
+  "message-version": "1.0.0",
+  "message": {
+    "items": [
+      {
+        "DOI": "10.1000/crossref.one",
+        "title": ["Offline CrossRef Paper One"],
+        "author": [
+          {"given": "Alice", "family": "Doe"},
+          {"given": "Bob", "family": "Smith"}
+        ],
+        "abstract": "CrossRef fixture abstract one.",
+        "issued": {"date-parts": [[2023, 5, 2]]},
+        "URL": "https://doi.org/10.1000/crossref.one",
+        "link": [
+          {
+            "URL": "https://example.org/crossref-one.pdf",
+            "content-type": "application/pdf"
+          }
+        ],
+        "type": "journal-article",
+        "subject": ["Cryptography", "Distributed Systems"],
+        "is-referenced-by-count": 12,
+        "publisher": "Fixture Press",
+        "container-title": ["Fixture Journal"],
+        "volume": "42",
+        "issue": "1",
+        "page": "1-10",
+        "ISSN": ["1234-5678"],
+        "ISBN": [],
+        "member": "1234",
+        "prefix": "10.1000"
+      },
+      {
+        "DOI": "10.1000/crossref.two",
+        "title": ["Offline CrossRef Paper Two"],
+        "author": [{"family": "Lee"}],
+        "abstract": "CrossRef fixture abstract two.",
+        "published": {"date-parts": [[2021, 11, 15]]},
+        "URL": "https://doi.org/10.1000/crossref.two",
+        "type": "proceedings-article",
+        "subject": ["Security"],
+        "is-referenced-by-count": 3,
+        "publisher": "Fixture Conference"
+      }
+    ]
+  }
+}

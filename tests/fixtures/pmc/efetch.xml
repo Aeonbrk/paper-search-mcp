@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pmc-articleset>
+  <article article-type="research-article">
+    <front>
+      <journal-meta>
+        <journal-title-group>
+          <journal-title>Offline Journal</journal-title>
+        </journal-title-group>
+      </journal-meta>
+      <article-meta>
+        <article-id pub-id-type="pmcid-ver">PMC1234567.1</article-id>
+        <article-id pub-id-type="pmcid">1234567</article-id>
+        <article-id pub-id-type="pmid">34567890</article-id>
+        <article-id pub-id-type="doi">10.1000/pmc.one</article-id>
+        <title-group>
+          <article-title>Offline PMC Paper One</article-title>
+        </title-group>
+        <contrib-group>
+          <contrib contrib-type="author">
+            <name>
+              <surname>Example</surname>
+              <given-names>Alice</given-names>
+            </name>
+          </contrib>
+          <contrib contrib-type="author">
+            <name>
+              <surname>Example</surname>
+              <given-names>Bob</given-names>
+            </name>
+          </contrib>
+        </contrib-group>
+        <abstract>
+          <p>Deterministic fixture abstract for PMC paper one.</p>
+        </abstract>
+        <pub-date pub-type="pmc-release">
+          <year>2024</year>
+          <month>2</month>
+          <day>14</day>
+        </pub-date>
+        <article-categories>
+          <subj-group>
+            <subject>Genomics</subject>
+            <subject>Cell Biology</subject>
+          </subj-group>
+        </article-categories>
+        <kwd-group>
+          <kwd>single-cell</kwd>
+          <kwd>atlas</kwd>
+        </kwd-group>
+      </article-meta>
+    </front>
+  </article>
+  <article article-type="review-article">
+    <front>
+      <journal-meta>
+        <journal-title-group>
+          <journal-title>Consortium Reports</journal-title>
+        </journal-title-group>
+      </journal-meta>
+      <article-meta>
+        <article-id pub-id-type="pmcid">PMC7654321</article-id>
+        <article-id pub-id-type="pmid">45678901</article-id>
+        <title-group>
+          <article-title>Offline PMC Paper Two</article-title>
+        </title-group>
+        <contrib-group>
+          <contrib contrib-type="author">
+            <collab>PMC Collaboration</collab>
+          </contrib>
+        </contrib-group>
+        <abstract>
+          <p>Deterministic fixture abstract for PMC paper two.</p>
+        </abstract>
+        <pub-date pub-type="epub">
+          <year>2021</year>
+          <month>Jul</month>
+        </pub-date>
+        <article-categories>
+          <subj-group>
+            <subject>Immunology</subject>
+          </subj-group>
+        </article-categories>
+        <kwd-group>
+          <kwd>consortium</kwd>
+        </kwd-group>
+      </article-meta>
+    </front>
+  </article>
+</pmc-articleset>

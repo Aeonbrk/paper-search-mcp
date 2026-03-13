@@ -9,17 +9,7 @@ import requests
 
 from .._http import DEFAULT_TIMEOUT, build_session
 from .._paths import resolve_download_target
-
-class PaperSource:
-    """Abstract base class for paper sources"""
-    def search(self, query: str, **kwargs) -> List[Paper]:
-        raise NotImplementedError
-
-    def download_pdf(self, paper_id: str, save_path: str) -> str:
-        raise NotImplementedError
-
-    def read_paper(self, paper_id: str, save_path: str) -> str:
-        raise NotImplementedError
+from ._base import PaperSource
 
 class ArxivSearcher(PaperSource):
     """Searcher for arXiv papers"""
@@ -62,7 +52,7 @@ class ArxivSearcher(PaperSource):
                     source='arxiv',
                     categories=[tag.term for tag in entry.tags],
                     keywords=[],
-                    doi=entry.get('doi', '')
+                    doi=entry.get('arxiv_doi', entry.get('doi', ''))
                 ))
             except Exception as e:
                 print(f"Error parsing arXiv entry: {e}")

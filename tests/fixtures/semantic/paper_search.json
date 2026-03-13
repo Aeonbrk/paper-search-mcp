@@ -1,0 +1,38 @@
+{
+  "total": 2,
+  "offset": 0,
+  "next": 2,
+  "data": [
+    {
+      "paperId": "sem_one",
+      "title": "Offline Semantic Paper One",
+      "abstract": "Deterministic semantic fixture abstract one.",
+      "year": 2023,
+      "citationCount": 15,
+      "authors": [
+        {"name": "Alice Example"},
+        {"name": "Bob Example"}
+      ],
+      "url": "https://www.semanticscholar.org/paper/sem_one",
+      "publicationDate": "2023-04-11",
+      "externalIds": {"DOI": "10.1000/semantic.one"},
+      "fieldsOfStudy": ["Computer Science", "Mathematics"],
+      "openAccessPdf": {"url": "https://example.org/semantic-one.pdf"}
+    },
+    {
+      "paperId": "sem_two",
+      "title": "Offline Semantic Paper Two",
+      "abstract": "Deterministic semantic fixture abstract two.",
+      "year": 2022,
+      "citationCount": 2,
+      "authors": [{"name": "Carol Example"}],
+      "url": "https://www.semanticscholar.org/paper/sem_two",
+      "publicationDate": "2022-09-01",
+      "externalIds": {},
+      "fieldsOfStudy": ["Computer Science"],
+      "openAccessPdf": {
+        "disclaimer": "Full text available at https://arxiv.org/abs/2503.54321v1"
+      }
+    }
+  ]
+}

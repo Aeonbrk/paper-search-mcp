@@ -17,9 +17,53 @@ detail in `docs/exec-plans/`.
 
 ## Active
 
-- None.
+- None currently.
 
 ## Completed
+
+### AB: Closeout (merge-ready) + PMC adapter (research + minimal implementation)
+
+- Status: completed
+- Mode: super_swarm
+- Difficulty: score=8 level=Medium
+  rationale="Combines merge-readiness closeout with a new source adapter and
+  shared docs/tests updates while keeping public MCP names and capability claims
+  stable."
+- Rationale: Close out current work to merge-ready and add PMC v1 support with
+  honest capability boundaries.
+- ExecPlan:
+  `docs/exec-plans/completed/2026-03-13_0017_BJT_ab-closeout-pmc-adapter.md`
+- Evidence: `uv sync --locked` passed; `PAPER_SEARCH_LIVE_TESTS=0 uv run python
+  -m compileall paper_search_mcp` passed; `PAPER_SEARCH_LIVE_TESTS=0 uv run
+  python -m compileall tests` passed; `PAPER_SEARCH_LIVE_TESTS=0 uv run python
+  -m unittest discover -q` passed with `OK (skipped=25)`; `markdownlint
+  README.md docs/**/*.md` passed; `PAPER_SEARCH_LIVE_TESTS=0 uv run python -m
+  unittest -q tests.test_pmc tests.test_adapter_contract tests.test_server`
+  passed; ExecPlan moved from `active/` to `completed/`.
+- Next steps: none
+- Last updated: 2026-03-13
+
+### P0: Offline fixtures + adapter interface convergence
+
+- Status: completed
+- Mode: super_swarm
+- Difficulty: score=9 level=Medium
+  rationale="Touches several adapters plus deterministic fixtures/tests while
+  preserving the MCP tool surface; mostly mechanical but broad."
+- Rationale: Implement `docs/TODO.md` P0 items so adapter expansion does not
+  erode testability and maintainability.
+- ExecPlan:
+  `docs/exec-plans/completed/2026-03-12_2208_BJT_p0-offline-fixtures-adapter-interface.md`
+- Evidence: `PAPER_SEARCH_LIVE_TESTS=0 uv run python -m unittest -q
+  tests.test_arxiv tests.test_pubmed tests.test_crossref tests.test_semantic
+  tests.test_iacr` passed; `PAPER_SEARCH_LIVE_TESTS=0 uv run python -m
+  compileall paper_search_mcp` passed; `PAPER_SEARCH_LIVE_TESTS=0 uv run python
+  -m compileall tests` passed; `env -u PAPER_SEARCH_LIVE_TESTS uv run python -m
+  unittest discover -q` passed; `rg -n "class PaperSource"
+  paper_search_mcp/academic_platforms/*.py` returns only `_base.py`;
+  markdownlint passed for the execplan and fixture README.
+- Next steps: none
+- Last updated: 2026-03-12
 
 ### 统一 uv + bug/perf + 文档补齐
 

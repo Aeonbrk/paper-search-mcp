@@ -9,6 +9,11 @@ Update it whenever source behavior changes.
   explicit timeouts, and downloads/reads land under `docs/downloads/`.
 - **PubMed** — search: yes; download: no; read: no; notes: metadata and
   abstracts only.
+- **PMC** — search: yes; download: no; read: no; notes: v1 uses NCBI
+  E-utilities only (`esearch` + `efetch` with `db=pmc`, `retmode=xml`);
+  canonical `paper_id` is a `PMCID` with the `PMC` prefix; `download_pmc`
+  and `read_pmc_paper` stay as structured limitation placeholders. See
+  `docs/project-specs/source-notes/pmc.md`.
 - **bioRxiv** — search: yes; download: yes; read: yes; notes: API-backed,
   but PDF and text behavior still depend on remote availability; downloads
   write under `docs/downloads/`.

@@ -30,6 +30,7 @@ The repo currently ships search support for:
 
 - arXiv
 - PubMed
+- PMC
 - bioRxiv
 - medRxiv
 - Google Scholar
@@ -40,6 +41,7 @@ The repo currently ships search support for:
 Support is intentionally uneven:
 
 - some sources are metadata-only,
+- PMC currently ships as metadata search plus placeholder download/read tools,
 - some support PDF download,
 - some also support text extraction from downloaded PDFs,
 - scraping-based sources are more fragile than API-backed sources.

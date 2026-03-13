@@ -1,9 +1,11 @@
 import os
 import unittest
+from unittest import mock
 
 import requests
 
 from paper_search_mcp.academic_platforms.crossref import CrossRefSearcher
+from tests._offline import OfflineTestCase, read_fixture_json
 
 
 LIVE_TESTS_ENABLED = os.getenv("PAPER_SEARCH_LIVE_TESTS") == "1"
@@ -70,6 +72,52 @@ class TestCrossRefSearcher(unittest.TestCase):
     def test_user_agent_header(self):
         self.assertIn("paper-search-mcp", self.searcher.session.headers.get("User-Agent", ""))
         self.assertIn("mailto:", self.searcher.session.headers.get("User-Agent", ""))
+
+
+class TestCrossRefSearcherOffline(OfflineTestCase):
+    def test_search_offline_fixture(self):
+        searcher = CrossRefSearcher()
+        response = mock.Mock()
+        response.raise_for_status = mock.Mock()
+        response.json.return_value = read_fixture_json("crossref", "works_search.json")
+
+        with mock.patch(
+            "paper_search_mcp.academic_platforms.crossref.request_with_retries",
+            return_value=response,
+        ) as mock_request:
+            papers = searcher.search("threshold cryptography", max_results=2)
+
+        self.assertEqual(mock_request.call_count, 1)
+        self.assertEqual(len(papers), 2)
+
+        first = papers[0]
+        self.assertEqual(first.source, "crossref")
+        self.assertEqual(first.paper_id, "10.1000/crossref.one")
+        self.assertEqual(first.doi, "10.1000/crossref.one")
+        self.assertEqual(first.title, "Offline CrossRef Paper One")
+        self.assertEqual(first.authors, ["Alice Doe", "Bob Smith"])
+        self.assertEqual(first.categories, ["journal-article"])
+
+        serialized = first.to_dict()
+        for key in [
+            "paper_id",
+            "title",
+            "authors",
+            "abstract",
+            "doi",
+            "published_date",
+            "pdf_url",
+            "url",
+            "source",
+            "updated_date",
+            "categories",
+            "keywords",
+            "citations",
+            "references",
+            "extra",
+        ]:
+            self.assertIn(key, serialized)
+        self.assertEqual(serialized["source"], "crossref")
 
 
 if __name__ == "__main__":

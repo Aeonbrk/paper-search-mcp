@@ -2,10 +2,12 @@ import os
 from pathlib import Path
 import shutil
 import unittest
+from unittest import mock
 
 import requests
 
 from paper_search_mcp.academic_platforms.semantic import SemanticSearcher
+from tests._offline import OfflineTestCase, read_fixture_json
 
 
 LIVE_TESTS_ENABLED = os.getenv("PAPER_SEARCH_LIVE_TESTS") == "1"
@@ -92,6 +94,36 @@ class TestSemanticSearcher(unittest.TestCase):
             output_dir = Path("docs/downloads") / save_path
             if output_dir.exists():
                 shutil.rmtree(output_dir, ignore_errors=True)
+
+
+class TestSemanticSearcherOffline(OfflineTestCase):
+    def test_search_offline_fixture(self):
+        searcher = SemanticSearcher()
+        fixture = read_fixture_json("semantic", "paper_search.json")
+
+        with mock.patch.object(searcher, "request_api", return_value=fixture) as mock_request:
+            papers = searcher.search("secret sharing", max_results=2)
+
+        mock_request.assert_called_once()
+        self.assertEqual(len(papers), 2)
+
+        first = papers[0]
+        self.assertEqual(first.paper_id, "sem_one")
+        self.assertEqual(first.title, "Offline Semantic Paper One")
+        self.assertEqual(first.authors, ["Alice Example", "Bob Example"])
+        self.assertEqual(first.source, "semantic")
+        self.assertEqual(first.doi, "10.1000/semantic.one")
+        self.assertEqual(first.categories, ["Computer Science", "Mathematics"])
+        self.assertEqual(first.pdf_url, "https://example.org/semantic-one.pdf")
+
+        second = papers[1]
+        self.assertEqual(second.paper_id, "sem_two")
+        self.assertEqual(second.pdf_url, "https://arxiv.org/pdf/2503.54321v1")
+
+        serialized = first.to_dict()
+        self.assertEqual(serialized["source"], "semantic")
+        self.assertEqual(serialized["categories"], "Computer Science; Mathematics")
+        self.assertEqual(serialized["doi"], "10.1000/semantic.one")
 
 
 if __name__ == "__main__":

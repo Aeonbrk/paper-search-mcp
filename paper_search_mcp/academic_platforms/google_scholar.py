@@ -7,21 +7,10 @@ import time
 import random
 from ..paper import Paper
 from .._http import DEFAULT_TIMEOUT, RetryPolicy, build_session, request_with_retries
+from ._base import PaperSource
 import logging
 
 logger = logging.getLogger(__name__)
-
-class PaperSource:
-    """Abstract base class for paper sources"""
-    def search(self, query: str, **kwargs) -> List[Paper]:
-        raise NotImplementedError
-
-    def download_pdf(self, paper_id: str, save_path: str) -> str:
-        raise NotImplementedError
-
-    def read_paper(self, paper_id: str, save_path: str) -> str:
-        raise NotImplementedError
-    
 
 class GoogleScholarSearcher(PaperSource):
     """Custom implementation of Google Scholar paper search"""

@@ -33,6 +33,12 @@
 - 建议负责人：`maintainer / source-owner`
 - 验收方式：输出能力结论，至少说明 `search`、`download`、`read`
   哪些支持；若实现，则补齐测试和能力矩阵。
+- 补充说明（占位但诚实）：优先做一个可合并的 v1：`search: yes`；同时
+  提供 `download_pmc` / `read_pmc_paper` 的占位工具，直接返回明确限制
+  信息（能力矩阵仍标记 `download: no`、`read: no`）。
+- 未实现 / 遗憾：真正的全文下载/阅读（即便只做 OA 子集）仍需要处理许可
+  判定、限流/重试策略、格式差异（PDF/JATS/补充材料）与离线 fixture
+  维护成本；建议另起 ExecPlan 单独推进。
 - 来源：上游 README TODO。
 
 ### 评估下一批高价值来源

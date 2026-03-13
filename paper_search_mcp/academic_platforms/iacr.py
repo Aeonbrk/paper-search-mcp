@@ -11,21 +11,9 @@ from PyPDF2 import PdfReader
 from .._http import DEFAULT_TIMEOUT, RetryPolicy, build_session, request_with_retries
 from .._paths import resolve_download_target
 from ..paper import Paper
+from ._base import PaperSource
 
 logger = logging.getLogger(__name__)
-
-
-class PaperSource:
-    """Abstract base class for paper sources"""
-
-    def search(self, query: str, **kwargs) -> List[Paper]:
-        raise NotImplementedError
-
-    def download_pdf(self, paper_id: str, save_path: str) -> str:
-        raise NotImplementedError
-
-    def read_paper(self, paper_id: str, save_path: str) -> str:
-        raise NotImplementedError
 
 
 class IACRSearcher(PaperSource):

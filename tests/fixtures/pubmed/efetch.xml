@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PubmedArticleSet>
+  <PubmedArticle>
+    <MedlineCitation>
+      <PMID Version="1">12345678</PMID>
+      <Article>
+        <ArticleTitle>Offline PubMed Paper One</ArticleTitle>
+        <Abstract>
+          <AbstractText>Deterministic fixture abstract for PubMed paper one.</AbstractText>
+        </Abstract>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <LastName>Doe</LastName>
+            <Initials>J</Initials>
+          </Author>
+          <Author ValidYN="Y">
+            <LastName>Smith</LastName>
+            <Initials>A</Initials>
+          </Author>
+        </AuthorList>
+        <Journal>
+          <JournalIssue CitedMedium="Internet">
+            <PubDate>
+              <Year>2024</Year>
+            </PubDate>
+          </JournalIssue>
+        </Journal>
+        <ELocationID EIdType="doi">10.1000/pubmed.one</ELocationID>
+      </Article>
+    </MedlineCitation>
+  </PubmedArticle>
+  <PubmedArticle>
+    <MedlineCitation>
+      <PMID Version="1">87654321</PMID>
+      <Article>
+        <ArticleTitle>Offline PubMed Paper Two</ArticleTitle>
+        <Abstract>
+          <AbstractText>Deterministic fixture abstract for PubMed paper two.</AbstractText>
+        </Abstract>
+        <AuthorList CompleteYN="Y">
+          <Author ValidYN="Y">
+            <LastName>Lee</LastName>
+            <Initials>B</Initials>
+          </Author>
+        </AuthorList>
+        <Journal>
+          <JournalIssue CitedMedium="Internet">
+            <PubDate>
+              <Year>2021</Year>
+            </PubDate>
+          </JournalIssue>
+        </Journal>
+      </Article>
+    </MedlineCitation>
+  </PubmedArticle>
+</PubmedArticleSet>

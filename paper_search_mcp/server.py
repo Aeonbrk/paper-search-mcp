@@ -6,6 +6,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .academic_platforms.arxiv import ArxivSearcher
 from .academic_platforms.pubmed import PubMedSearcher
+from .academic_platforms.pmc import PMCSearcher
 from .academic_platforms.biorxiv import BioRxivSearcher
 from .academic_platforms.medrxiv import MedRxivSearcher
 from .academic_platforms.google_scholar import GoogleScholarSearcher
@@ -84,6 +85,19 @@ async def search_pubmed(query: str, max_results: int = 10) -> List[Dict]:
         List of paper metadata in dictionary format.
     """
     return await _run_sync(_search_sync, PubMedSearcher, query, max_results)
+
+
+@mcp.tool()
+async def search_pmc(query: str, max_results: int = 10) -> List[Dict]:
+    """Search academic papers from PubMed Central (PMC).
+
+    Args:
+        query: Search query string (e.g., 'machine learning').
+        max_results: Maximum number of papers to return (default: 10).
+    Returns:
+        List of paper metadata in dictionary format.
+    """
+    return await _run_sync(_search_sync, PMCSearcher, query, max_results)
 
 
 @mcp.tool()
@@ -178,6 +192,22 @@ async def download_pubmed(paper_id: str, save_path: str = "./downloads") -> str:
 
 
 @mcp.tool()
+async def download_pmc(paper_id: str, save_path: str = "./downloads") -> str:
+    """Return the PMC download limitation message.
+
+    Args:
+        paper_id: PMC ID (PMCID, for example `PMC1234567`).
+        save_path: Compatibility parameter. PMC v1 ignores this value because
+            download is not supported.
+    Returns:
+        `LIMITATION:` + JSON limitation message.
+    """
+    del save_path
+    searcher = PMCSearcher()
+    return await _run_sync(searcher.download_pdf, paper_id, "")
+
+
+@mcp.tool()
 async def download_biorxiv(paper_id: str, save_path: str = "./downloads") -> str:
     """Download PDF of a bioRxiv paper.
 
@@ -251,6 +281,22 @@ async def read_pubmed_paper(paper_id: str, save_path: str = "./downloads") -> st
         str: Message indicating that direct paper reading is not supported.
     """
     return await _run_sync(_read_sync, PubMedSearcher, paper_id, save_path)
+
+
+@mcp.tool()
+async def read_pmc_paper(paper_id: str, save_path: str = "./downloads") -> str:
+    """Return the PMC read limitation message.
+
+    Args:
+        paper_id: PMC ID (PMCID, for example `PMC1234567`).
+        save_path: Compatibility parameter. PMC v1 ignores this value because
+            read is not supported.
+    Returns:
+        `LIMITATION:` + JSON limitation message.
+    """
+    del save_path
+    searcher = PMCSearcher()
+    return await _run_sync(searcher.read_paper, paper_id, "")
 
 
 @mcp.tool()

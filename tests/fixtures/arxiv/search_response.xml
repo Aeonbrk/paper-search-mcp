@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:arxiv="http://arxiv.org/schemas/atom">
+  <id>http://arxiv.org/api/query?search_query=all:quantum+gravity&amp;start=0&amp;max_results=2</id>
+  <title type="html">ArXiv Query: search_query=all:quantum gravity&amp;start=0&amp;max_results=2</title>
+  <updated>2026-03-12T00:00:00Z</updated>
+  <entry>
+    <id>http://arxiv.org/abs/2503.12345v1</id>
+    <updated>2026-03-11T12:34:56Z</updated>
+    <published>2026-03-10T08:00:00Z</published>
+    <title>Offline Fixture Paper One</title>
+    <summary>A deterministic offline fixture for arXiv search parsing.</summary>
+    <author>
+      <name>Alice Example</name>
+    </author>
+    <author>
+      <name>Bob Example</name>
+    </author>
+    <link href="http://arxiv.org/abs/2503.12345v1" rel="alternate" type="text/html" />
+    <link href="http://arxiv.org/pdf/2503.12345v1" rel="related" type="application/pdf" />
+    <arxiv:doi>10.1000/example-doi</arxiv:doi>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom" />
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom" />
+  </entry>
+  <entry>
+    <id>http://arxiv.org/abs/2503.54321v2</id>
+    <updated>2026-03-09T09:15:00Z</updated>
+    <published>2026-03-08T07:30:00Z</published>
+    <title>Offline Fixture Paper Two</title>
+    <summary>Another entry that exercises parsing without a DOI.</summary>
+    <author>
+      <name>Carol Example</name>
+    </author>
+    <link href="http://arxiv.org/abs/2503.54321v2" rel="alternate" type="text/html" />
+    <link href="http://arxiv.org/pdf/2503.54321v2" rel="related" type="application/pdf" />
+    <category term="math.CO" scheme="http://arxiv.org/schemas/atom" />
+  </entry>
+</feed>

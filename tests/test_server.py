@@ -33,9 +33,12 @@ class TestPaperSearchServer(unittest.TestCase):
             "download_semantic",
             "read_semantic_paper",
             "search_crossref",
+            "search_pmc",
             "get_crossref_paper_by_doi",
             "download_crossref",
+            "download_pmc",
             "read_crossref_paper",
+            "read_pmc_paper",
         }
         self.assertEqual(tool_names, expected_names)
 

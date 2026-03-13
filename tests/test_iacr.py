@@ -2,10 +2,12 @@ import os
 from pathlib import Path
 import shutil
 import unittest
+from unittest import mock
 
 import requests
 
 from paper_search_mcp.academic_platforms.iacr import IACRSearcher
+from tests._offline import OfflineTestCase, read_fixture_text
 
 
 LIVE_TESTS_ENABLED = os.getenv("PAPER_SEARCH_LIVE_TESTS") == "1"
@@ -87,6 +89,37 @@ class TestIACRSearcher(unittest.TestCase):
             output_dir = Path("docs/downloads") / save_path
             if output_dir.exists():
                 shutil.rmtree(output_dir, ignore_errors=True)
+
+
+class TestIACRSearcherOffline(OfflineTestCase):
+    def test_search_offline_fixture(self):
+        searcher = IACRSearcher()
+        response = mock.Mock()
+        response.text = read_fixture_text("iacr", "search.html")
+        response.raise_for_status = mock.Mock()
+
+        with mock.patch.object(searcher, "_fetch_response", return_value=response) as mock_fetch:
+            papers = searcher.search("secret sharing", max_results=2, fetch_details=False)
+
+        mock_fetch.assert_called_once_with(
+            searcher.IACR_SEARCH_URL,
+            params={"q": "secret sharing"},
+        )
+        self.assertEqual(len(papers), 2)
+
+        first = papers[0]
+        self.assertEqual(first.paper_id, "2025/1014")
+        self.assertEqual(first.title, "Offline IACR Paper One")
+        self.assertEqual(first.authors, ["Alice Example", "Bob Example"])
+        self.assertEqual(first.source, "iacr")
+        self.assertEqual(first.categories, ["Cryptography"])
+        self.assertEqual(first.pdf_url, "https://eprint.iacr.org/2025/1014.pdf")
+
+        serialized = first.to_dict()
+        for key in ["paper_id", "title", "source", "url", "pdf_url", "categories"]:
+            self.assertIn(key, serialized)
+        self.assertEqual(serialized["source"], "iacr")
+        self.assertEqual(serialized["categories"], "Cryptography")
 
 
 if __name__ == "__main__":
