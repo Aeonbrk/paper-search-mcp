@@ -18,16 +18,19 @@
 
 ## Live Tests
 
-Use live-network tests only when an adapter changed:
+Use live-network tests only when an adapter changed or when you need the
+protocol-level MCP smoke suite:
 
 ```bash
 PAPER_SEARCH_LIVE_TESTS=1 uv run python -m unittest -q tests.test_arxiv
 PAPER_SEARCH_LIVE_TESTS=1 uv run python -m unittest -q tests.test_semantic
+PAPER_SEARCH_LIVE_TESTS=1 uv run python -m unittest -q tests.test_mcp_live
 ```
 
 Rules:
 
 - run the narrowest module that matches the changed adapter,
+- `tests.test_mcp_live` is opt-in and does not replace the default offline gate,
 - expect upstream flake for scraping-heavy sources,
 - clean up any temporary `docs/downloads/` subdirectories created by ad hoc
   live tests.

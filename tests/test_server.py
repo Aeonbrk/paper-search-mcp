@@ -42,6 +42,21 @@ class TestPaperSearchServer(unittest.TestCase):
         }
         self.assertEqual(tool_names, expected_names)
 
+    def test_search_crossref_schema_matches_public_contract(self):
+        tools = asyncio.run(server.mcp.list_tools())
+        tool_by_name = {tool.name: tool for tool in tools}
+
+        schema = tool_by_name["search_crossref"].inputSchema
+        properties = schema["properties"]
+
+        self.assertEqual(schema["required"], ["query"])
+        self.assertIn("query", properties)
+        self.assertIn("max_results", properties)
+        self.assertIn("filter", properties)
+        self.assertIn("sort", properties)
+        self.assertIn("order", properties)
+        self.assertNotIn("kwargs", properties)
+
     def test_canonical_save_path_ignores_user_input(self):
         self.assertEqual(server._canonical_save_path("../escape"), "docs/downloads")
         self.assertEqual(Path(server._canonical_save_path("anywhere")), Path("docs/downloads"))

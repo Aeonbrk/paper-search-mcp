@@ -423,7 +423,13 @@ async def read_semantic_paper(paper_id: str, save_path: str = "./downloads") -> 
 
 
 @mcp.tool()
-async def search_crossref(query: str, max_results: int = 10, **kwargs) -> List[Dict]:
+async def search_crossref(
+    query: str,
+    max_results: int = 10,
+    filter: Optional[str] = None,
+    sort: Optional[str] = None,
+    order: Optional[str] = None,
+) -> List[Dict]:
     """Search academic papers from CrossRef database.
     
     CrossRef is a scholarly infrastructure organization that provides 
@@ -434,10 +440,10 @@ async def search_crossref(query: str, max_results: int = 10, **kwargs) -> List[D
     Args:
         query: Search query string (e.g., 'machine learning', 'climate change').
         max_results: Maximum number of papers to return (default: 10, max: 1000).
-        **kwargs: Additional search parameters:
-            - filter: CrossRef filter string (e.g., 'has-full-text:true,from-pub-date:2020')
-            - sort: Sort field ('relevance', 'published', 'updated', 'deposited', etc.)
-            - order: Sort order ('asc' or 'desc')
+        filter: CrossRef filter string
+            (e.g., 'has-full-text:true,from-pub-date:2020').
+        sort: Sort field ('relevance', 'published', 'updated', 'deposited', etc.).
+        order: Sort order ('asc' or 'desc').
     Returns:
         List of paper metadata in dictionary format.
         
@@ -451,7 +457,16 @@ async def search_crossref(query: str, max_results: int = 10, **kwargs) -> List[D
         # Search sorted by publication date
         search_crossref("neural networks", 15, sort="published", order="desc")
     """
-    return await _run_sync(_search_sync, CrossRefSearcher, query, max_results, dict(kwargs))
+    search_kwargs = {
+        key: value
+        for key, value in {
+            "filter": filter,
+            "sort": sort,
+            "order": order,
+        }.items()
+        if value is not None
+    }
+    return await _run_sync(_search_sync, CrossRefSearcher, query, max_results, search_kwargs)
 
 
 @mcp.tool()

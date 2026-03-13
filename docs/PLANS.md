@@ -21,6 +21,32 @@ detail in `docs/exec-plans/`.
 
 ## Completed
 
+### Add Live MCP Protocol Smoke Matrix (Opt-in)
+
+- Status: completed
+- Mode: super_swarm
+- Difficulty: score=7 level=Medium
+  rationale="Adds protocol-level smoke coverage plus validation docs while
+  preserving the default offline gate and existing MCP tool surface."
+- Rationale: Add an opt-in live MCP smoke matrix without changing the default
+  offline validation gate.
+- ExecPlan:
+  `docs/exec-plans/completed/2026-03-13_2128_BJT_mcp-live-smoke-matrix.md`
+- Evidence: `tests/_mcp_live.py` added; `tests/test_mcp_live.py` added with
+  protocol-level stdio coverage for the registered MCP tool surface; live-test
+  cleanup tightened so `docs/downloads/` returns to its pre-test state; `uv
+  sync --locked` passed; `markdownlint README.md $(find docs -type f -name
+  '*.md' | sort)` passed; `uv run python -m compileall paper_search_mcp tests`
+  passed; `uv run python -c "import paper_search_mcp.server as s;
+  print(s.mcp.name)"` printed `paper_search_server`;
+  `PAPER_SEARCH_LIVE_TESTS=0 uv run python -m unittest discover -q` passed
+  with `OK (skipped=26)`; `PAPER_SEARCH_LIVE_TESTS=1 uv run python -m unittest
+  -q tests.test_mcp_live` passed with `OK (skipped=4)`; final download-root
+  check printed `remaining_download_files= []`.
+- Next steps: none (optional: investigate the non-blocking CrossRef live parse
+  warnings seen during the smoke run).
+- Last updated: 2026-03-13
+
 ### Release: CI + publish test gates + version bump
 
 - Status: completed
