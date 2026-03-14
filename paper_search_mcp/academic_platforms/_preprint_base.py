@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import logging
+import os
 from pathlib import Path
 import re
 from typing import List
@@ -34,16 +35,21 @@ class PreprintSearcherBase(PaperSource):
     SOURCE_NAME = ""
     BASE_URL = ""
     CONTENT_BASE_URL = ""
+    DISABLE_PROXIES_ENV = "PAPER_SEARCH_DISABLE_PROXIES"
 
     def __init__(self):
         self.session = build_session(headers=self.PDF_HEADERS)
-        self.session.proxies = {"http": None, "https": None}
         self.timeout = 30
         self.max_retries = 3
 
     @property
     def logger(self) -> logging.Logger:
         return logging.getLogger(self.__class__.__module__)
+
+    def _proxy_request_kwargs(self) -> dict:
+        if os.getenv(self.DISABLE_PROXIES_ENV) != "1":
+            return {}
+        return {"proxies": {"http": None, "https": None}}
 
     def _retry_policy(self) -> RetryPolicy:
         return RetryPolicy(max_retries=max(self.max_retries - 1, 0))
@@ -58,6 +64,7 @@ class PreprintSearcherBase(PaperSource):
             url,
             timeout=DEFAULT_TIMEOUT,
             retry_policy=self._retry_policy(),
+            **self._proxy_request_kwargs(),
         )
 
     def _download(self, url: str, paper_id: str, save_path: str) -> Path:
@@ -69,6 +76,7 @@ class PreprintSearcherBase(PaperSource):
             timeout=DEFAULT_TIMEOUT,
             retry_policy=self._retry_policy(),
             headers=self.PDF_HEADERS,
+            **self._proxy_request_kwargs(),
         )
 
     def _extract_text(self, pdf_path: Path) -> str:
@@ -131,8 +139,9 @@ class PreprintSearcherBase(PaperSource):
         if not query_terms:
             return []
 
-        end_date = datetime.now().strftime("%Y-%m-%d")
-        start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+        now = datetime.now()
+        end_date = now.strftime("%Y-%m-%d")
+        start_date = (now - timedelta(days=days)).strftime("%Y-%m-%d")
 
         matches = []
         seen_paper_ids = set()

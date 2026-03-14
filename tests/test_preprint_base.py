@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -17,6 +19,43 @@ class DummyPreprintSearcher(PreprintSearcherBase):
 
 
 class TestPreprintSearcherBase(OfflineTestCase):
+    def test_search_captures_now_once_for_date_window(self):
+        searcher = DummyPreprintSearcher()
+        fixed_now = datetime(2026, 3, 14, 0, 0, 1)
+
+        class CountingDateTime:
+            calls = 0
+
+            @classmethod
+            def now(cls):
+                cls.calls += 1
+                if cls.calls > 1:
+                    raise AssertionError("datetime.now() called more than once")
+                return fixed_now
+
+        response = mock.Mock()
+        response.raise_for_status = mock.Mock()
+        response.json.return_value = {"collection": []}
+
+        days = 7
+        expected_end = fixed_now.strftime("%Y-%m-%d")
+        expected_start = (fixed_now - timedelta(days=days)).strftime("%Y-%m-%d")
+        expected_url = f"{searcher.BASE_URL}/{expected_start}/{expected_end}/0"
+
+        def _assert_url(url: str):
+            self.assertEqual(url, expected_url)
+            return response
+
+        with mock.patch(
+            "paper_search_mcp.academic_platforms._preprint_base.datetime",
+            CountingDateTime,
+        ):
+            with mock.patch.object(searcher, "_request", side_effect=_assert_url):
+                papers = searcher.search("immune", max_results=1, days=days)
+
+        self.assertEqual(papers, [])
+        self.assertEqual(CountingDateTime.calls, 1)
+
     def test_search_uses_shared_scoring_and_source_specific_urls(self):
         searcher = DummyPreprintSearcher()
         response = mock.Mock()
@@ -55,6 +94,66 @@ class TestPreprintSearcherBase(OfflineTestCase):
             papers[0].pdf_url,
             "https://www.example.org/content/10.1000/alphav2.full.pdf",
         )
+
+    def test_proxy_toggle_disables_proxies_per_request(self):
+        searcher = DummyPreprintSearcher()
+
+        response = mock.Mock()
+        response.raise_for_status = mock.Mock()
+        response.json.return_value = {"collection": []}
+
+        with mock.patch(
+            "paper_search_mcp.academic_platforms._preprint_base.request_with_retries",
+            return_value=response,
+        ) as mock_request:
+            papers = searcher.search("immune", max_results=1, days=1)
+
+        self.assertEqual(papers, [])
+        self.assertNotIn("proxies", mock_request.call_args.kwargs)
+
+        with mock.patch.dict(os.environ, {"PAPER_SEARCH_DISABLE_PROXIES": "1"}):
+            with mock.patch(
+                "paper_search_mcp.academic_platforms._preprint_base.request_with_retries",
+                return_value=response,
+            ) as mock_request_disabled:
+                papers = searcher.search("immune", max_results=1, days=1)
+
+            self.assertEqual(papers, [])
+            self.assertEqual(
+                mock_request_disabled.call_args.kwargs["proxies"],
+                {"http": None, "https": None},
+            )
+
+        expected_pdf_path = Path("docs/downloads/unit/10.1000/test.pdf")
+        with mock.patch(
+            "paper_search_mcp.academic_platforms._preprint_base.download_pdf_file",
+            return_value=expected_pdf_path,
+        ) as mock_download:
+            result = searcher._download(
+                "https://www.example.org/content/10.1000/testv1.full.pdf",
+                "10.1000/test",
+                "unit",
+            )
+
+        self.assertEqual(result, expected_pdf_path)
+        self.assertNotIn("proxies", mock_download.call_args.kwargs)
+
+        with mock.patch.dict(os.environ, {"PAPER_SEARCH_DISABLE_PROXIES": "1"}):
+            with mock.patch(
+                "paper_search_mcp.academic_platforms._preprint_base.download_pdf_file",
+                return_value=expected_pdf_path,
+            ) as mock_download_disabled:
+                result = searcher._download(
+                    "https://www.example.org/content/10.1000/testv1.full.pdf",
+                    "10.1000/test",
+                    "unit",
+                )
+
+            self.assertEqual(result, expected_pdf_path)
+            self.assertEqual(
+                mock_download_disabled.call_args.kwargs["proxies"],
+                {"http": None, "https": None},
+            )
 
     def test_download_pdf_delegates_to_shared_download_helper(self):
         searcher = DummyPreprintSearcher()

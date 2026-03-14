@@ -17,9 +17,34 @@ detail in `docs/exec-plans/`.
 
 ## Active
 
-- None currently.
-
 ## Completed
+
+### Review Follow-ups: HTTP Backoff + Preprint Proxies
+
+- Status: completed
+- Mode: super_swarm
+- Difficulty: score=5 level=Medium
+  rationale="Touches shared HTTP retry semantics plus preprint transport
+  behavior and docs; requires careful contract-safe changes and offline
+  validation."
+- Rationale: Convert post-merge review notes into shippable fixes:
+  wire `RetryPolicy.backoff_factor` into urllib3 backoff growth, make
+  preprint proxy policy explicit + test-covered, remove small
+  nondeterminism in date windows, and align docs.
+- ExecPlan:
+  `docs/exec-plans/completed/2026-03-14_1636_BJT_review-results-optimization.md`
+- Evidence: `RetryPolicy.backoff_factor` now controls urllib3 backoff growth and
+  is pinned by `tests/test_http.py`; preprint calls respect environment proxies
+  by default and support `PAPER_SEARCH_DISABLE_PROXIES=1` for request-level
+  proxy disabling, with offline coverage in `tests/test_preprint_base.py`;
+  preprint search captures `now` once for deterministic date windows; docs
+  updated and markdownlint-clean; `uv sync --locked` passed; `uv run python -m
+  compileall paper_search_mcp tests` passed; `uv run python -m unittest -q
+  tests.test_http` passed; `uv run python -m unittest -q
+  tests.test_preprint_base` passed; `PAPER_SEARCH_LIVE_TESTS=0 uv run python -m
+  unittest discover -q` passed with `OK (skipped=26)`.
+- Next steps: none.
+- Last updated: 2026-03-14
 
 ### Optimize Paper Search Runtime Quality
 
@@ -33,7 +58,7 @@ detail in `docs/exec-plans/`.
 - Rationale: Improve performance, stability, and maintainability via
   dependency-aware refactors with stronger offline validation.
 - ExecPlan:
-  `docs/exec-plans/active/2026-03-14_1409_BJT_paper-search-perf-stability-maintainability.md`
+  `docs/exec-plans/completed/2026-03-14_1409_BJT_paper-search-perf-stability-maintainability.md`
 - Evidence: Added shared transport and PDF utility layers
   (`paper_search_mcp/_http.py`, `paper_search_mcp/_pdf.py`), centralized
   server dispatch in `paper_search_mcp/server.py`, and shared preprint

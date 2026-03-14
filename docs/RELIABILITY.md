@@ -39,3 +39,11 @@ Live integration checks are opt-in:
   bounded concurrency limit.
 - This improves responsiveness, but it does not make upstream services more
   reliable. Source-specific caveats still matter.
+- Shared HTTP retries use `RetryPolicy` in `paper_search_mcp/_http.py`. Backoff
+  uses separate knobs for base delay vs growth:
+  `backoff_base_seconds * (backoff_factor ** (n - 1))` (first retry backoff is
+  `0`), capped by `backoff_max_seconds`.
+- bioRxiv/medRxiv preprint calls respect environment proxies by default.
+  Set `PAPER_SEARCH_DISABLE_PROXIES=1` to disable proxies for preprint calls
+  only (request-level `proxies={"http": None, "https": None}` override). This
+  toggle does not imply uniform proxy behavior across all sources.

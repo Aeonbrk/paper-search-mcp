@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import random
 from typing import Any, Dict, Iterable, Mapping, Optional, Sequence, Tuple
 
 import requests
@@ -22,6 +23,21 @@ RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 
 @dataclass(frozen=True)
 class RetryPolicy:
+    """Retry configuration for HTTP requests.
+
+    Notes:
+        urllib3's `Retry` backoff grows exponentially using a base factor of 2.
+        This project exposes two knobs:
+
+        - `backoff_base_seconds`: base delay in seconds.
+        - `backoff_factor`: exponential growth factor per consecutive failure.
+
+        The effective backoff for consecutive failures beyond the first is:
+        `backoff_base_seconds * (backoff_factor ** (n - 1))`, capped by
+        `backoff_max_seconds`. The first retry backoff is `0` to mirror urllib3's
+        default behavior.
+    """
+
     max_retries: int = 3
     retryable_status_codes: Sequence[int] = tuple(RETRYABLE_STATUS_CODES)
     backoff_base_seconds: float = 1.0
@@ -76,6 +92,50 @@ def _normalize_retry_status_codes(
     return tuple(dict.fromkeys(int(code) for code in source))
 
 
+class _ConfigurableBackoffRetry(Retry):
+    """urllib3 `Retry` with a configurable exponential growth factor.
+
+    urllib3's built-in backoff grows with base 2. This subclass keeps urllib3's
+    semantics (including redirect handling and jitter support) while allowing a
+    different exponential growth factor to be configured.
+    """
+
+    def __init__(
+        self,
+        *args: Any,
+        backoff_growth_factor: float = 2.0,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.backoff_growth_factor = (
+            float(backoff_growth_factor) if backoff_growth_factor > 0 else 2.0
+        )
+
+    def new(self, **kw: Any) -> _ConfigurableBackoffRetry:
+        new_retry = super().new(**kw)
+        if isinstance(new_retry, _ConfigurableBackoffRetry):
+            new_retry.backoff_growth_factor = self.backoff_growth_factor
+        return new_retry
+
+    def get_backoff_time(self) -> float:
+        consecutive_errors_len = 0
+        for entry in reversed(self.history):
+            if getattr(entry, "redirect_location", None) is not None:
+                break
+            consecutive_errors_len += 1
+
+        if consecutive_errors_len <= 1:
+            return 0.0
+
+        backoff_value = self.backoff_factor * (
+            self.backoff_growth_factor ** (consecutive_errors_len - 1)
+        )
+        if getattr(self, "backoff_jitter", 0.0) != 0.0:
+            backoff_value += random.random() * self.backoff_jitter
+
+        return float(max(0.0, min(self.backoff_max, backoff_value)))
+
+
 def _build_retry(
     retry_policy: RetryPolicy,
     retry_on_status_codes: Optional[Iterable[int]] = None,
@@ -83,7 +143,11 @@ def _build_retry(
     retryable_status_codes = _normalize_retry_status_codes(
         retry_policy, retry_on_status_codes
     )
-    return Retry(
+    backoff_growth_factor = retry_policy.backoff_factor
+    if backoff_growth_factor <= 0:
+        backoff_growth_factor = 2.0
+
+    return _ConfigurableBackoffRetry(
         total=retry_policy.max_retries,
         connect=retry_policy.max_retries,
         read=retry_policy.max_retries,
@@ -93,6 +157,7 @@ def _build_retry(
             method.upper() for method in retry_policy.allowed_methods
         ),
         status_forcelist=retryable_status_codes,
+        backoff_growth_factor=backoff_growth_factor,
         backoff_factor=retry_policy.backoff_base_seconds,
         backoff_max=retry_policy.backoff_max_seconds,
         raise_on_status=False,

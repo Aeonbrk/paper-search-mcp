@@ -50,6 +50,8 @@ Support is intentionally uneven:
   errors.
 - supported tool paths now share centralized HTTP retry/timeout policy and
   canonical download routing under `docs/downloads/`.
+- bioRxiv/medRxiv preprint calls respect environment proxies by default. Set
+  `PAPER_SEARCH_DISABLE_PROXIES=1` to disable proxies for preprint calls only.
 
 See `docs/project-specs/source-capability-matrix.md` for the current source
 matrix.

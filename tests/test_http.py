@@ -51,6 +51,37 @@ class TestHttpHelpers(unittest.TestCase):
             self.assertEqual(retry.backoff_max, 3.0)
             self.assertFalse(retry.raise_on_status)
 
+    def test_retry_policy_backoff_factor_is_applied_to_backoff_time(self):
+        retry_policy = RetryPolicy(
+            max_retries=10,
+            backoff_base_seconds=1.0,
+            backoff_factor=3.0,
+            backoff_max_seconds=60.0,
+        )
+        session = build_session(retry_policy=retry_policy)
+        retry = session.get_adapter("https://").max_retries
+
+        retry = retry.increment(
+            method="GET",
+            url="https://example.test/retry",
+            error=Exception("boom"),
+        )
+        self.assertEqual(retry.get_backoff_time(), 0.0)
+
+        retry = retry.increment(
+            method="GET",
+            url="https://example.test/retry",
+            error=Exception("boom"),
+        )
+        self.assertEqual(retry.get_backoff_time(), 3.0)
+
+        retry = retry.increment(
+            method="GET",
+            url="https://example.test/retry",
+            error=Exception("boom"),
+        )
+        self.assertEqual(retry.get_backoff_time(), 9.0)
+
     def test_request_with_retries_preserves_pooling_and_applies_status_override(self):
         session = build_session(
             retry_policy=RetryPolicy(max_retries=1, retryable_status_codes=(429,)),
