@@ -17,9 +17,64 @@ detail in `docs/exec-plans/`.
 
 ## Active
 
-- None currently.
+### Optimize Paper Search Runtime Quality
+
+- Status: planned
+- Mode: swarm_waves
+- Difficulty: score=10 level=Complex
+  rationale="Cross-cuts shared HTTP/PDF utilities, server dispatch,
+  multiple adapters, deterministic regression tests, and durable docs
+  while preserving the existing MCP contract and source capability
+  boundaries."
+- Rationale: Improve performance, stability, and maintainability via
+  dependency-aware refactors with stronger offline validation.
+- ExecPlan:
+  `docs/exec-plans/active/2026-03-14_1409_BJT_paper-search-perf-stability-maintainability.md`
+- Evidence: ExecPlan created with explicit dependencies, writes/creates
+  scopes, and mutex declarations for parallel execution safety.
+- Next steps: execute Wave 1 (`T1` to `T4`) with orchestrator-owned
+  tracker updates.
+- Last updated: 2026-03-14
 
 ## Completed
+
+### Stabilize And Align Non-Semantic Search Tools
+
+- Status: completed
+- Mode: super_swarm
+- Difficulty: score=8 level=Medium
+  rationale="Touches the shared MCP search path plus multiple source adapters,
+  tests, and contract docs while preserving the public tool names and
+  explicitly excluding Semantic Scholar."
+- Rationale: Fix non-Semantic search contract failures, make bioRxiv and
+  medRxiv behave like real search tools, and add regression coverage for
+  zero-hit MCP responses.
+- ExecPlan:
+  `docs/exec-plans/completed/2026-03-14_0044_BJT_search-tool-optimization-nonsemantic.md`
+- Evidence: `tests/test_search_contract.py` now pins deterministic zero-hit and
+  transport-failure behavior for non-Semantic search tools; bioRxiv and
+  medRxiv now use bounded recent-metadata retrieval plus local query matching,
+  with offline fixtures proving one topical query and one nonsense-query empty
+  path for each source; CrossRef, Google Scholar, and IACR now keep ordinary
+  no-hit searches distinct from transport failures, with new offline coverage;
+  `uv run python -m compileall paper_search_mcp tests` passed; `uv run python
+  -m unittest -q tests.test_server` passed; `uv run python -m unittest -q
+  tests.test_search_contract` passed; `uv run python -m unittest -q
+  tests.test_arxiv` passed with `OK (skipped=1)`; `uv run python -m unittest
+  -q tests.test_pubmed` passed with `OK (skipped=1)`; `uv run python -m
+  unittest -q tests.test_pmc` passed; `uv run python -m unittest -q
+  tests.test_biorxiv tests.test_medrxiv` passed with `OK (skipped=4)`; `uv
+  run python -m unittest -q tests.test_crossref tests.test_google_scholar
+  tests.test_iacr` passed with `OK (skipped=10)`; `PAPER_SEARCH_LIVE_TESTS=1
+  uv run python -m unittest -q tests.test_mcp_live` passed with
+  `OK (skipped=4)` in `67.523s`; `markdownlint README.md docs/PLANS.md
+  docs/project-specs/mcp-tool-contract.md
+  docs/project-specs/source-capability-matrix.md
+  docs/exec-plans/completed/2026-03-14_0044_BJT_search-tool-optimization-nonsemantic.md`
+  passed.
+- Next steps: none; Semantic Scholar remains intentionally unchanged unless a
+  later task revisits the API-key-dependent path.
+- Last updated: 2026-03-14
 
 ### Add Live MCP Protocol Smoke Matrix (Opt-in)
 

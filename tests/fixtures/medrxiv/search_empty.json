@@ -1,0 +1,29 @@
+{
+  "messages": [
+    {
+      "status": "ok",
+      "cursor": 0,
+      "count": 2
+    }
+  ],
+  "collection": [
+    {
+      "doi": "10.1101/2026.02.12.777777",
+      "title": "Hospital discharge planning for frail older adults",
+      "authors": "Jules Example",
+      "abstract": "This study evaluates discharge planning pathways for frail older adults after hospitalization.",
+      "date": "2026-02-12",
+      "version": "1",
+      "category": "geriatric medicine"
+    },
+    {
+      "doi": "10.1101/2026.02.08.888888",
+      "title": "Seasonal influenza triage in community clinics",
+      "authors": "Kai Example; Lane Example",
+      "abstract": "We analyze clinic triage practices during a seasonal influenza surge.",
+      "date": "2026-02-08",
+      "version": "1",
+      "category": "primary care research"
+    }
+  ]
+}

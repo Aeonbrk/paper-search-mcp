@@ -1,0 +1,29 @@
+{
+  "messages": [
+    {
+      "status": "ok",
+      "cursor": 0,
+      "count": 2
+    }
+  ],
+  "collection": [
+    {
+      "doi": "10.1101/2026.02.22.555555",
+      "title": "Long COVID antibody signatures after mild infection",
+      "authors": "Grace Example; Henry Example",
+      "abstract": "We identify long covid antibody signatures and durable immune markers after mild SARS-CoV-2 infection.",
+      "date": "2026-02-22",
+      "version": "1",
+      "category": "infectious diseases"
+    },
+    {
+      "doi": "10.1101/2026.02.16.666666",
+      "title": "Emergency department staffing during winter surges",
+      "authors": "Ivy Example",
+      "abstract": "This preprint examines staffing adaptations during emergency department winter surges.",
+      "date": "2026-02-16",
+      "version": "2",
+      "category": "health policy"
+    }
+  ]
+}

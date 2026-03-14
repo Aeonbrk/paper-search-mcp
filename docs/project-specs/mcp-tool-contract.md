@@ -12,6 +12,27 @@ This repo exposes a source-scoped FastMCP tool surface from
 - `get_crossref_paper_by_doi` is the one source-specific lookup helper that does
   not follow the search/download/read triad.
 
+## Search contract
+
+- Search tools are query-driven unless a source-specific note says otherwise.
+- An ordinary no-hit query returns zero papers, not a transport error.
+- For direct Python calls in this repo, that means `[]`.
+- At the MCP boundary, current FastMCP and Python SDK clients may surface the
+  same zero-hit result either as an empty structured result or as
+  `CallToolResult(content=[])`. Both are valid no-result outcomes.
+- Transport failures, blocking, or rate limits are not part of the no-hit
+  contract. Those cases may still surface as errors.
+
+## Source-specific search notes
+
+- `search_biorxiv` and `search_medrxiv` remain free-text search tools at the
+  public surface. Because the upstream API does not publish a documented
+  free-text endpoint, this repo implements them by fetching a bounded recent
+  metadata window and applying local query matching.
+- `search_crossref`, `search_google_scholar`, and `search_iacr` treat no-hit
+  searches as empty results and keep transport failures distinct from that
+  outcome.
+
 ## Limitation message format (hard contract)
 
 Some sources do not support `download` and/or `read` capabilities. In those

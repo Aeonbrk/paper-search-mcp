@@ -1,5 +1,6 @@
 import os
 import unittest
+from unittest import mock
 
 import requests
 
@@ -60,6 +61,31 @@ class TestGoogleScholarSearcher(unittest.TestCase):
     def test_read_paper_not_supported(self):
         message = self.searcher.read_paper("some_id")
         self.assertIn("Google Scholar doesn't support direct paper reading", message)
+
+    def test_search_returns_empty_list_when_page_has_no_results(self):
+        response = mock.Mock()
+        response.raise_for_status = mock.Mock()
+        response.text = "<html><body><div id='gs_res_ccl_mid'></div></body></html>"
+
+        with (
+            mock.patch(
+                "paper_search_mcp.academic_platforms.google_scholar.request_with_retries",
+                return_value=response,
+            ) as mock_request,
+            mock.patch("paper_search_mcp.academic_platforms.google_scholar.time.sleep"),
+        ):
+            papers = self.searcher.search("no hits expected", max_results=3)
+
+        self.assertEqual(papers, [])
+        mock_request.assert_called_once()
+
+    def test_search_propagates_transport_failures(self):
+        with mock.patch(
+            "paper_search_mcp.academic_platforms.google_scholar.request_with_retries",
+            side_effect=requests.RequestException("scholar unavailable"),
+        ):
+            with self.assertRaisesRegex(requests.RequestException, "scholar unavailable"):
+                self.searcher.search("network failure", max_results=2)
 
 
 if __name__ == "__main__":

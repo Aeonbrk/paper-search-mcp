@@ -121,6 +121,27 @@ class TestIACRSearcherOffline(OfflineTestCase):
         self.assertEqual(serialized["source"], "iacr")
         self.assertEqual(serialized["categories"], "Cryptography")
 
+    def test_search_returns_empty_list_for_no_hit_response(self):
+        searcher = IACRSearcher()
+        response = mock.Mock()
+        response.text = "<html><body><p>No results found</p></body></html>"
+
+        with mock.patch.object(searcher, "_fetch_response", return_value=response):
+            papers = searcher.search("no hits expected", max_results=2, fetch_details=False)
+
+        self.assertEqual(papers, [])
+
+    def test_search_propagates_transport_failures(self):
+        searcher = IACRSearcher()
+
+        with mock.patch.object(
+            searcher,
+            "_fetch_response",
+            side_effect=requests.RequestException("iacr unavailable"),
+        ):
+            with self.assertRaisesRegex(requests.RequestException, "iacr unavailable"):
+                searcher.search("network failure", max_results=2, fetch_details=False)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -96,6 +96,19 @@ SEARCH_CASES = {
     "crossref": {"query": "transformer", "max_results": 2},
 }
 
+NO_HIT_SEARCH_QUERY = "qzjxkvmrptnqlwyyhbcd20260314 vfsnkmptzqwyxrdh"
+NO_HIT_SEARCH_CASES = {
+    source_id: {"query": NO_HIT_SEARCH_QUERY, "max_results": 1}
+    for source_id in (
+        "arxiv",
+        "pubmed",
+        "pmc",
+        "google_scholar",
+        "iacr",
+        "crossref",
+    )
+}
+
 PREFLIGHT_CASES = {
     "arxiv": {
         "url": "http://export.arxiv.org/api/query?search_query=all:transformer&start=0&max_results=1",
@@ -142,6 +155,7 @@ LIMITATION_SOURCES = {"pmc"}
 SEARCH_SOURCE_IDS = tuple(SEARCH_CASES)
 FULLTEXT_SOURCE_IDS = ("arxiv", "biorxiv", "medrxiv", "iacr", "semantic")
 NONFILE_UNSUPPORTED_SOURCE_IDS = ("pubmed", "crossref")
+ZERO_HIT_SEARCH_SOURCE_IDS = tuple(NO_HIT_SEARCH_CASES)
 
 
 @dataclass(frozen=True)
@@ -280,6 +294,29 @@ def _json_items(result: CallToolResult) -> list[dict[str, Any]]:
     return papers
 
 
+def _search_items(result: CallToolResult) -> list[dict[str, Any]]:
+    if result.isError:
+        raise AssertionError(f"Tool returned protocol error: {result}")
+    if not result.content:
+        return []
+
+    papers: list[dict[str, Any]] = []
+    for item in result.content:
+        if not isinstance(item, TextContent):
+            raise AssertionError(f"Expected text content, got {type(item).__name__}")
+        payload = parse_json_text(item.text)
+        if isinstance(payload, dict):
+            papers.append(payload)
+            continue
+        if isinstance(payload, list):
+            if not all(isinstance(paper, dict) for paper in payload):
+                raise AssertionError("Expected JSON object payloads")
+            papers.extend(payload)
+            continue
+        raise AssertionError("Expected JSON object or list payload")
+    return papers
+
+
 class TestPaperSearchServerLive(unittest.TestCase):
     maxDiff = None
     _availability_cache: dict[str, bool] = {}
@@ -318,10 +355,23 @@ class TestPaperSearchServerLive(unittest.TestCase):
         source_id: str,
     ) -> list[dict[str, Any]]:
         result = await session.call_tool(_tool_name("search", source_id), SEARCH_CASES[source_id])
-        papers = _json_items(result)
+        papers = _search_items(result)
+        self.assertTrue(papers, f"{source_id} search returned no papers")
         for paper in papers:
             self._assert_paper(paper, source_id=source_id)
         return papers
+
+    async def _assert_no_hit_search(
+        self,
+        session: Any,
+        source_id: str,
+    ) -> None:
+        result = await session.call_tool(
+            _tool_name("search", source_id),
+            NO_HIT_SEARCH_CASES[source_id],
+        )
+        papers = _search_items(result)
+        self.assertEqual(papers, [], f"{source_id} no-hit query returned unexpected papers")
 
     def _pick_paper_id(self, source_id: str, papers: list[dict[str, Any]], *, require_pdf: bool) -> str:
         for paper in papers:
@@ -410,6 +460,20 @@ def _make_search_test(source_id: str):
         self._run(run())
 
     test.__name__ = f"test_search_{source_id}_returns_normalized_json"
+    return test
+
+
+def _make_zero_hit_search_test(source_id: str):
+    def test(self: TestPaperSearchServerLive) -> None:
+        self._require_source(source_id)
+
+        async def run() -> None:
+            async with open_live_mcp_session() as session:
+                await self._assert_no_hit_search(session, source_id)
+
+        self._run(run())
+
+    test.__name__ = f"test_search_{source_id}_returns_empty_result_for_no_hit_query"
     return test
 
 
@@ -510,6 +574,13 @@ for _source_id in SEARCH_SOURCE_IDS:
         TestPaperSearchServerLive,
         f"test_search_{_source_id}_returns_normalized_json",
         _make_search_test(_source_id),
+    )
+
+for _source_id in ZERO_HIT_SEARCH_SOURCE_IDS:
+    setattr(
+        TestPaperSearchServerLive,
+        f"test_search_{_source_id}_returns_empty_result_for_no_hit_query",
+        _make_zero_hit_search_test(_source_id),
     )
 
 for _source_id in FULLTEXT_SOURCE_IDS:

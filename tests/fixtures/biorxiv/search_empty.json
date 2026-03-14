@@ -1,0 +1,29 @@
+{
+  "messages": [
+    {
+      "status": "ok",
+      "cursor": 0,
+      "count": 2
+    }
+  ],
+  "collection": [
+    {
+      "doi": "10.1101/2026.02.11.333333",
+      "title": "Microbial metabolite exchange shapes soil ecosystems",
+      "authors": "Dana Example; Evan Example",
+      "abstract": "We characterize metabolite exchange networks in soil microbial communities.",
+      "date": "2026-02-11",
+      "version": "1",
+      "category": "microbiology"
+    },
+    {
+      "doi": "10.1101/2026.02.09.444444",
+      "title": "Plant circadian control during seasonal adaptation",
+      "authors": "Fran Example",
+      "abstract": "This study measures plant circadian adaptation across seasonal light cycles.",
+      "date": "2026-02-09",
+      "version": "1",
+      "category": "plant biology"
+    }
+  ]
+}

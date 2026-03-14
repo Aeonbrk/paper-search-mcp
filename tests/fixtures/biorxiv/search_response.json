@@ -1,0 +1,29 @@
+{
+  "messages": [
+    {
+      "status": "ok",
+      "cursor": 0,
+      "count": 2
+    }
+  ],
+  "collection": [
+    {
+      "doi": "10.1101/2026.02.20.111111",
+      "title": "Single-cell atlas reveals adaptive immune signaling in lung repair",
+      "authors": "Alice Example; Bob Example",
+      "abstract": "We build a single cell atlas of lung repair and identify adaptive immune signaling programs after injury.",
+      "date": "2026-02-20",
+      "version": "1",
+      "category": "cell biology"
+    },
+    {
+      "doi": "10.1101/2026.02.18.222222",
+      "title": "Recent advances in zebrafish fin regeneration",
+      "authors": "Carol Example",
+      "abstract": "This preprint summarizes tissue repair findings in zebrafish fin regeneration.",
+      "date": "2026-02-18",
+      "version": "2",
+      "category": "developmental biology"
+    }
+  ]
+}

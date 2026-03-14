@@ -45,9 +45,20 @@ Support is intentionally uneven:
 - some support PDF download,
 - some also support text extraction from downloaded PDFs,
 - scraping-based sources are more fragile than API-backed sources.
+- ordinary no-hit search queries return empty results instead of transport
+  errors.
 
 See `docs/project-specs/source-capability-matrix.md` for the current source
 matrix.
+
+Two search adapters need extra context:
+
+- `search_biorxiv` and `search_medrxiv` stay query-driven at the MCP surface,
+  but the upstream API does not expose a documented free-text endpoint. The
+  repo now fetches a bounded recent metadata window and applies local matching
+  so nonsense queries return `[]` instead of unrelated recent papers.
+- Semantic Scholar is still part of the repo surface, but this optimization
+  pass did not change its behavior.
 
 Sci-Hub-related code exists in the repo, but it is not part of the default
 supported surface.

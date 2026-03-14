@@ -1,5 +1,6 @@
 from typing import List, Optional
 from datetime import datetime
+from math import ceil
 import hashlib
 import requests
 from bs4 import BeautifulSoup
@@ -97,6 +98,7 @@ class GoogleScholarSearcher(PaperSource):
         papers = []
         start = 0
         results_per_page = min(10, max_results)
+        max_pages = max(1, ceil(max_results / results_per_page))
         retry_policy = RetryPolicy(
             max_retries=2,
             backoff_base_seconds=1.0,
@@ -104,54 +106,49 @@ class GoogleScholarSearcher(PaperSource):
             backoff_max_seconds=8.0,
         )
 
-        while len(papers) < max_results:
-            try:
-                # Construct search parameters
-                params = {
-                    'q': query,
-                    'start': start,
-                    'hl': 'en',
-                    'as_sdt': '0,5'  # Include articles and citations
-                }
+        for _ in range(max_pages):
+            # Construct search parameters
+            params = {
+                'q': query,
+                'start': start,
+                'hl': 'en',
+                'as_sdt': '0,5'  # Include articles and citations
+            }
 
-                # Keep a small delay only for follow-up pages.
-                if start > 0:
-                    time.sleep(random.uniform(1.0, 3.0))
+            # Keep a small delay only for follow-up pages.
+            if start > 0:
+                time.sleep(random.uniform(1.0, 3.0))
 
-                response = request_with_retries(
-                    self.session,
-                    "GET",
-                    self.SCHOLAR_URL,
-                    params=params,
-                    timeout=DEFAULT_TIMEOUT,
-                    retry_policy=retry_policy,
-                )
-                
-                if response.status_code != 200:
-                    logger.error(f"Search failed with status {response.status_code}")
-                    break
+            response = request_with_retries(
+                self.session,
+                "GET",
+                self.SCHOLAR_URL,
+                params=params,
+                timeout=DEFAULT_TIMEOUT,
+                retry_policy=retry_policy,
+            )
+            response.raise_for_status()
 
-                # Parse results
-                soup = BeautifulSoup(response.text, 'html.parser')
-                results = soup.find_all('div', class_='gs_ri')
+            # Parse results
+            soup = BeautifulSoup(response.text, 'html.parser')
+            results = soup.find_all('div', class_='gs_ri')
 
-                if not results:
-                    break
-
-                # Process each result
-                for item in results:
-                    if len(papers) >= max_results:
-                        break
-                        
-                    paper = self._parse_paper(item)
-                    if paper:
-                        papers.append(paper)
-
-                start += results_per_page
-
-            except Exception as e:
-                logger.error(f"Search error: {e}")
+            if not results:
                 break
+
+            # Process each result
+            for item in results:
+                if len(papers) >= max_results:
+                    break
+
+                paper = self._parse_paper(item)
+                if paper:
+                    papers.append(paper)
+
+            if len(papers) >= max_results:
+                break
+
+            start += results_per_page
 
         return papers[:max_results]
 

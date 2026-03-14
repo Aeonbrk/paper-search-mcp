@@ -15,20 +15,27 @@ Update it whenever source behavior changes.
   and `read_pmc_paper` stay as structured limitation placeholders. See
   `docs/project-specs/source-notes/pmc.md`.
 - **bioRxiv** — search: yes; download: yes; read: yes; notes: API-backed,
-  but PDF and text behavior still depend on remote availability; downloads
-  write under `docs/downloads/`.
+  but the upstream API does not publish a documented free-text search endpoint;
+  this repo performs bounded recent-metadata retrieval plus local query
+  matching so nonsense queries return `[]`; PDF and text behavior still depend
+  on remote availability; downloads write under `docs/downloads/`.
 - **medRxiv** — search: yes; download: yes; read: yes; notes: similar
-  operational profile to bioRxiv; downloads write under `docs/downloads/`.
+  operational profile to bioRxiv, including bounded recent-metadata retrieval
+  plus local query matching because the public API does not publish a
+  documented free-text search endpoint; downloads write under
+  `docs/downloads/`.
 - **Google Scholar** — search: yes; download: no; read: no; notes:
-  supported with caveats because it is scraping-based and can be blocked.
+  supported with caveats because it is scraping-based and can be blocked;
+  ordinary no-hit queries return `[]`, while transport failures stay distinct.
 - **IACR ePrint Archive** — search: yes; download: yes; read: yes;
-  notes: search and detail scraping depend on current site structure; downloads
-  write under `docs/downloads/`.
+  notes: search and detail scraping depend on current site structure; ordinary
+  no-hit queries return `[]`; downloads write under `docs/downloads/`.
 - **Semantic Scholar** — search: yes; download: yes; read: yes; notes:
   better with `SEMANTIC_SCHOLAR_API_KEY`; otherwise more rate-limit risk;
   downloads write under `docs/downloads/`.
 - **CrossRef** — search: yes; download: no; read: no; notes:
-  metadata-oriented and does not provide direct full-text delivery.
+  metadata-oriented and does not provide direct full-text delivery; ordinary
+  no-hit queries return `[]`, while request failures stay distinct.
 
 ## Optional and Sensitive Surface
 

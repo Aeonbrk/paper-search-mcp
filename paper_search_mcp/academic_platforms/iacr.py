@@ -178,34 +178,29 @@ class IACRSearcher(PaperSource):
             List[Paper]: List of paper objects
         """
         papers = []
+        # Construct search parameters
+        params = {"q": query}
 
-        try:
-            # Construct search parameters
-            params = {"q": query}
+        response = self._fetch_response(self.IACR_SEARCH_URL, params=params)
 
-            response = self._fetch_response(self.IACR_SEARCH_URL, params=params)
+        soup = BeautifulSoup(response.text, "html.parser")
 
-            soup = BeautifulSoup(response.text, "html.parser")
+        # Find all paper entries - they are divs with class "mb-4"
+        results = soup.find_all("div", class_="mb-4")
 
-            # Find all paper entries - they are divs with class "mb-4"
-            results = soup.find_all("div", class_="mb-4")
+        if not results:
+            logger.info("No results found for the query")
+            return papers
 
-            if not results:
-                logger.info("No results found for the query")
-                return papers
+        # Process each result
+        for i, item in enumerate(results):
+            if len(papers) >= max_results:
+                break
 
-            # Process each result
-            for i, item in enumerate(results):
-                if len(papers) >= max_results:
-                    break
-
-                logger.info(f"Processing paper {i+1}/{min(len(results), max_results)}")
-                paper = self._parse_paper(item, fetch_details=fetch_details)
-                if paper:
-                    papers.append(paper)
-
-        except Exception as e:
-            logger.error(f"IACR search error: {e}")
+            logger.info(f"Processing paper {i+1}/{min(len(results), max_results)}")
+            paper = self._parse_paper(item, fetch_details=fetch_details)
+            if paper:
+                papers.append(paper)
 
         return papers[:max_results]
 

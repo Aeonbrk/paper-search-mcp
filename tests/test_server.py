@@ -57,6 +57,34 @@ class TestPaperSearchServer(unittest.TestCase):
         self.assertIn("order", properties)
         self.assertNotIn("kwargs", properties)
 
+    def test_nonsemantic_search_tool_schemas_remain_query_driven(self):
+        tools = asyncio.run(server.mcp.list_tools())
+        tool_by_name = {tool.name: tool for tool in tools}
+
+        query_driven_search_tools = {
+            "search_arxiv": set(),
+            "search_pubmed": set(),
+            "search_pmc": set(),
+            "search_biorxiv": set(),
+            "search_medrxiv": set(),
+            "search_google_scholar": set(),
+            "search_iacr": {"fetch_details"},
+            "search_crossref": {"filter", "sort", "order"},
+        }
+
+        for tool_name, extra_properties in query_driven_search_tools.items():
+            with self.subTest(tool=tool_name):
+                schema = tool_by_name[tool_name].inputSchema
+                properties = schema["properties"]
+
+                self.assertEqual(schema["required"], ["query"])
+                self.assertIn("query", properties)
+                self.assertIn("max_results", properties)
+                self.assertNotIn("category", properties)
+
+                for property_name in extra_properties:
+                    self.assertIn(property_name, properties)
+
     def test_canonical_save_path_ignores_user_input(self):
         self.assertEqual(server._canonical_save_path("../escape"), "docs/downloads")
         self.assertEqual(Path(server._canonical_save_path("anywhere")), Path("docs/downloads"))

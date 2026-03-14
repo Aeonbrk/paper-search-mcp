@@ -119,6 +119,49 @@ class TestCrossRefSearcherOffline(OfflineTestCase):
             self.assertIn(key, serialized)
         self.assertEqual(serialized["source"], "crossref")
 
+    def test_search_returns_empty_list_for_no_hit_response(self):
+        searcher = CrossRefSearcher()
+        response = mock.Mock()
+        response.raise_for_status = mock.Mock()
+        response.json.return_value = {"message": {"items": []}}
+
+        with mock.patch(
+            "paper_search_mcp.academic_platforms.crossref.request_with_retries",
+            return_value=response,
+        ):
+            papers = searcher.search("no such paper", max_results=2)
+
+        self.assertEqual(papers, [])
+
+    def test_search_propagates_transport_failures(self):
+        searcher = CrossRefSearcher()
+
+        with mock.patch(
+            "paper_search_mcp.academic_platforms.crossref.request_with_retries",
+            side_effect=requests.RequestException("crossref unavailable"),
+        ):
+            with self.assertRaisesRegex(requests.RequestException, "crossref unavailable"):
+                searcher.search("network failure", max_results=2)
+
+    def test_extract_date_normalizes_partial_or_zero_month_day(self):
+        searcher = CrossRefSearcher()
+
+        published = searcher._extract_date(
+            {"published": {"date-parts": [[2024, 0, 0]]}},
+            "published",
+        )
+        issued = searcher._extract_date(
+            {"issued": {"date-parts": [[2023, 2, 31]]}},
+            "issued",
+        )
+
+        self.assertEqual(published, searcher._extract_date({"published": {"date-parts": [[2024]]}}, "published"))
+        self.assertEqual(published, searcher._extract_date({"published": {"date-parts": [["2024", "0"]]}}, "published"))
+        self.assertEqual(published.year, 2024)
+        self.assertEqual(published.month, 1)
+        self.assertEqual(published.day, 1)
+        self.assertEqual(issued, searcher._extract_date({"issued": {"date-parts": [[2023, 2, 28]]}}, "issued"))
+
 
 if __name__ == "__main__":
     unittest.main()

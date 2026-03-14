@@ -37,6 +37,12 @@ async def _run_sync(callable_: Callable[..., Any], /, *args: Any, **kwargs: Any)
         return await asyncio.to_thread(callable_, *args, **kwargs)
 
 
+def _serialize_search_results(papers: Optional[List[Any]]) -> List[Dict]:
+    if not papers:
+        return []
+    return [paper.to_dict() for paper in papers]
+
+
 def _search_sync(
     searcher_cls: Type[Any], query: str, max_results: int, kwargs: Optional[Dict[str, Any]] = None
 ) -> List[Dict]:
@@ -45,7 +51,7 @@ def _search_sync(
         papers = searcher.search(query, max_results=max_results, **kwargs)
     else:
         papers = searcher.search(query, max_results=max_results)
-    return [paper.to_dict() for paper in papers]
+    return _serialize_search_results(papers)
 
 
 def _download_sync(searcher_cls: Type[Any], paper_id: str, save_path: str) -> str:
@@ -155,7 +161,7 @@ async def search_iacr(
     def _search_iacr_sync() -> List[Dict]:
         searcher = IACRSearcher()
         papers = searcher.search(query, max_results, fetch_details)
-        return [paper.to_dict() for paper in papers] if papers else []
+        return _serialize_search_results(papers)
 
     return await _run_sync(_search_iacr_sync)
 

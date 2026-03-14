@@ -1,5 +1,6 @@
 # paper_search_mcp/academic_platforms/crossref.py
 from typing import List, Optional, Dict, Any
+from calendar import monthrange
 from datetime import datetime
 import requests
 from ..paper import Paper
@@ -35,64 +36,56 @@ class CrossRefSearcher(PaperSource):
         Returns:
             List of Paper objects
         """
-        try:
-            retry_policy = RetryPolicy(
-                max_retries=2,
-                backoff_base_seconds=2.0,
-                backoff_factor=2.0,
-                backoff_max_seconds=10.0,
-            )
-            params = {
-                'query': query,
-                'rows': min(max_results, 1000),  # CrossRef API max is 1000
-                'sort': 'relevance',
-                'order': 'desc'
-            }
+        retry_policy = RetryPolicy(
+            max_retries=2,
+            backoff_base_seconds=2.0,
+            backoff_factor=2.0,
+            backoff_max_seconds=10.0,
+        )
+        params = {
+            'query': query,
+            'rows': min(max_results, 1000),  # CrossRef API max is 1000
+            'sort': 'relevance',
+            'order': 'desc'
+        }
+        
+        # Add any additional filters from kwargs
+        if 'filter' in kwargs:
+            params['filter'] = kwargs['filter']
+        if 'sort' in kwargs:
+            params['sort'] = kwargs['sort']
+        if 'order' in kwargs:
+            params['order'] = kwargs['order']
             
-            # Add any additional filters from kwargs
-            if 'filter' in kwargs:
-                params['filter'] = kwargs['filter']
-            if 'sort' in kwargs:
-                params['sort'] = kwargs['sort']
-            if 'order' in kwargs:
-                params['order'] = kwargs['order']
+        # Add polite pool parameter
+        params['mailto'] = 'paper-search@example.org'
+        
+        url = f"{self.BASE_URL}/works"
+        response = request_with_retries(
+            self.session,
+            "GET",
+            url,
+            params=params,
+            timeout=DEFAULT_TIMEOUT,
+            retry_policy=retry_policy,
+        )
+        
+        response.raise_for_status()
+        data = response.json()
+        
+        papers = []
+        items = data.get('message', {}).get('items', [])
+        
+        for item in items:
+            try:
+                paper = self._parse_crossref_item(item)
+                if paper:
+                    papers.append(paper)
+            except Exception as e:
+                logger.warning(f"Error parsing CrossRef item: {e}")
+                continue
                 
-            # Add polite pool parameter
-            params['mailto'] = 'paper-search@example.org'
-            
-            url = f"{self.BASE_URL}/works"
-            response = request_with_retries(
-                self.session,
-                "GET",
-                url,
-                params=params,
-                timeout=DEFAULT_TIMEOUT,
-                retry_policy=retry_policy,
-            )
-            
-            response.raise_for_status()
-            data = response.json()
-            
-            papers = []
-            items = data.get('message', {}).get('items', [])
-            
-            for item in items:
-                try:
-                    paper = self._parse_crossref_item(item)
-                    if paper:
-                        papers.append(paper)
-                except Exception as e:
-                    logger.warning(f"Error parsing CrossRef item: {e}")
-                    continue
-                    
-            return papers
-            
-        except requests.RequestException as e:
-            logger.error(f"Error searching CrossRef: {e}")
-            return []
-        except Exception as e:
-            logger.error(f"Unexpected error in CrossRef search: {e}")
-            return []
+        return papers
     
     def _parse_crossref_item(self, item: Dict[str, Any]) -> Optional[Paper]:
         """Parse a CrossRef API item into a Paper object."""
@@ -198,11 +191,21 @@ class CrossRefSearcher(PaperSource):
             
         parts = date_parts[0]
         try:
-            year = parts[0] if len(parts) > 0 else 1970
-            month = parts[1] if len(parts) > 1 else 1
-            day = parts[2] if len(parts) > 2 else 1
+            year = int(parts[0]) if len(parts) > 0 else 1970
+            if year <= 0:
+                return None
+
+            month = int(parts[1]) if len(parts) > 1 else 1
+            if month < 1 or month > 12:
+                month = 1
+
+            day = int(parts[2]) if len(parts) > 2 else 1
+            if day < 1:
+                day = 1
+
+            day = min(day, monthrange(year, month)[1])
             return datetime(year, month, day)
-        except (ValueError, IndexError):
+        except (TypeError, ValueError, IndexError):
             return None
     
     def _extract_container_title(self, item: Dict[str, Any]) -> str:
