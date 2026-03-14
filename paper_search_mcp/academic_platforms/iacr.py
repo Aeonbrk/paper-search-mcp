@@ -163,6 +163,12 @@ class IACRSearcher(PaperSource):
             logger.warning(f"Failed to parse IACR paper: {e}")
             return None
 
+    def _can_fetch_details(self, item) -> bool:
+        header_div = item.find("div", class_="d-flex")
+        if not header_div:
+            return False
+        return header_div.find("a", class_="paperlink") is not None
+
     def search(
         self, query: str, max_results: int = 10, fetch_details: bool = True
     ) -> List[Paper]:
@@ -192,13 +198,20 @@ class IACRSearcher(PaperSource):
             logger.info("No results found for the query")
             return papers
 
+        remaining_detail_budget = max_results if fetch_details else 0
+
         # Process each result
         for i, item in enumerate(results):
             if len(papers) >= max_results:
                 break
 
             logger.info(f"Processing paper {i+1}/{min(len(results), max_results)}")
-            paper = self._parse_paper(item, fetch_details=fetch_details)
+            should_fetch_details = (
+                remaining_detail_budget > 0 and self._can_fetch_details(item)
+            )
+            paper = self._parse_paper(item, fetch_details=should_fetch_details)
+            if should_fetch_details:
+                remaining_detail_budget -= 1
             if paper:
                 papers.append(paper)
 

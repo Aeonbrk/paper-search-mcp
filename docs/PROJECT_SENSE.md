@@ -22,3 +22,11 @@ small set of academic paper sources.
 
 Make the repo easy to understand, safe to operate, and honest about source
 limits while preserving the existing MCP runtime surface.
+
+## Current Operational Priorities
+
+- Keep the public MCP tool names and high-level behavior stable.
+- Improve internal reliability through shared HTTP and PDF utility layers.
+- Keep no-hit behavior deterministic (`[]`) and distinct from transport errors.
+- Preserve canonical download/read routing under `docs/downloads/`.
+- Expand deterministic offline regression coverage before relying on live checks.

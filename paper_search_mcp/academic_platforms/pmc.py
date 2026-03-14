@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
 from typing import Iterable, List, Optional
 from xml.etree import ElementTree as ET
 
 import requests
 
-from .._http import DEFAULT_TIMEOUT, build_session
+from .._http import DEFAULT_TIMEOUT, build_session, request_with_retries
 from ..paper import Paper
 from ._base import PaperSource
 
 __all__ = ["PMCSearcher"]
+
+logger = logging.getLogger(__name__)
 
 
 class PMCSearcher(PaperSource):
@@ -110,14 +113,22 @@ class PMCSearcher(PaperSource):
 
     def _get_xml(self, url: str, params: dict[str, object]) -> Optional[ET.Element]:
         try:
-            response = self.session.get(url, params=params, timeout=self.timeout)
+            response = request_with_retries(
+                self.session,
+                "GET",
+                url,
+                params=params,
+                timeout=self.timeout,
+            )
             response.raise_for_status()
-        except requests.RequestException:
+        except requests.RequestException as exc:
+            logger.warning("PMC request failed for %s: %s", url, exc)
             return None
 
         try:
             return ET.fromstring(response.content)
-        except ET.ParseError:
+        except ET.ParseError as exc:
+            logger.warning("PMC XML parse failed for %s: %s", url, exc)
             return None
 
     def _parse_article(self, article: ET.Element) -> Optional[Paper]:

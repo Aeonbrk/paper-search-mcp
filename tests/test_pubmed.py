@@ -2,6 +2,8 @@ import os
 import unittest
 from unittest import mock
 
+import requests
+
 from paper_search_mcp.academic_platforms.pubmed import PubMedSearcher
 from tests._offline import OfflineTestCase, read_fixture_text
 
@@ -42,15 +44,16 @@ class TestPubMedSearcherOffline(OfflineTestCase):
         fetch_response.content = read_fixture_text("pubmed", "efetch.xml").encode("utf-8")
         fetch_response.raise_for_status = mock.Mock()
 
-        with mock.patch.object(
-            searcher.session,
-            "get",
+        with mock.patch(
+            "paper_search_mcp.academic_platforms.pubmed.request_with_retries",
             side_effect=[search_response, fetch_response],
-        ) as mock_get:
+        ) as mock_request:
             papers = searcher.search("secret sharing", max_results=2)
 
-        self.assertEqual(mock_get.call_count, 2)
-        mock_get.assert_any_call(
+        self.assertEqual(mock_request.call_count, 2)
+        mock_request.assert_any_call(
+            searcher.session,
+            "GET",
             searcher.SEARCH_URL,
             params={
                 "db": "pubmed",
@@ -60,7 +63,9 @@ class TestPubMedSearcherOffline(OfflineTestCase):
             },
             timeout=searcher.timeout,
         )
-        mock_get.assert_any_call(
+        mock_request.assert_any_call(
+            searcher.session,
+            "GET",
             searcher.FETCH_URL,
             params={
                 "db": "pubmed",
@@ -91,6 +96,17 @@ class TestPubMedSearcherOffline(OfflineTestCase):
         self.assertEqual(serialized["paper_id"], "12345678")
         self.assertEqual(serialized["source"], "pubmed")
         self.assertEqual(serialized["doi"], "10.1000/pubmed.one")
+
+    def test_search_returns_empty_list_for_transport_failure(self):
+        searcher = PubMedSearcher()
+
+        with mock.patch(
+            "paper_search_mcp.academic_platforms.pubmed.request_with_retries",
+            side_effect=requests.RequestException("pubmed unavailable"),
+        ):
+            papers = searcher.search("network fault", max_results=2)
+
+        self.assertEqual(papers, [])
 
 
 if __name__ == "__main__":

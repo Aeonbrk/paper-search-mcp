@@ -10,6 +10,13 @@ ADAPTER_SPECS = [
     ("arxiv", "paper_search_mcp.academic_platforms.arxiv", "ArxivSearcher"),
     ("pubmed", "paper_search_mcp.academic_platforms.pubmed", "PubMedSearcher"),
     ("pmc", "paper_search_mcp.academic_platforms.pmc", "PMCSearcher"),
+    ("biorxiv", "paper_search_mcp.academic_platforms.biorxiv", "BioRxivSearcher"),
+    ("medrxiv", "paper_search_mcp.academic_platforms.medrxiv", "MedRxivSearcher"),
+    (
+        "google_scholar",
+        "paper_search_mcp.academic_platforms.google_scholar",
+        "GoogleScholarSearcher",
+    ),
     ("crossref", "paper_search_mcp.academic_platforms.crossref", "CrossRefSearcher"),
     ("semantic", "paper_search_mcp.academic_platforms.semantic", "SemanticSearcher"),
     ("iacr", "paper_search_mcp.academic_platforms.iacr", "IACRSearcher"),
@@ -74,6 +81,26 @@ class TestAdapterContract(OfflineTestCase):
                 self.assertIn("paper_id", read_sig.parameters)
                 self.assertIn("save_path", read_sig.parameters)
                 self.assertEqual(read_sig.parameters["save_path"].default, "./downloads")
+
+    def test_session_backed_adapters_expose_shared_transport_config(self):
+        for source_id, module_path, class_name in ADAPTER_SPECS:
+            with self.subTest(source=source_id):
+                module = importlib.import_module(module_path)
+                adapter_cls = getattr(module, class_name)
+                adapter = adapter_cls()
+
+                session = getattr(adapter, "session", None)
+                if session is None:
+                    continue
+
+                transport_config = getattr(session, "_paper_search_transport_config", None)
+                self.assertIsNotNone(
+                    transport_config,
+                    f"{class_name} should use the shared HTTP transport config",
+                )
+                self.assertGreater(len(transport_config.retry_on_status_codes), 0)
+                self.assertGreater(transport_config.pool_connections, 0)
+                self.assertGreater(transport_config.pool_maxsize, 0)
 
 
 if __name__ == "__main__":

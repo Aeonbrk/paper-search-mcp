@@ -1,15 +1,19 @@
-# paper_search_mcp/sources/arxiv.py
-from typing import List
 from datetime import datetime
-import feedparser
-from ..paper import Paper
-from PyPDF2 import PdfReader
+import logging
 from pathlib import Path
+from typing import List
+
+import feedparser
 import requests
 
-from .._http import DEFAULT_TIMEOUT, build_session
+from .._http import DEFAULT_TIMEOUT, RetryPolicy, build_session, request_with_retries
 from .._paths import resolve_download_target
+from .._pdf import PdfDownloadError, PdfTextExtractionError, download_pdf_file, extract_pdf_text
+from ..paper import Paper
 from ._base import PaperSource
+
+logger = logging.getLogger(__name__)
+
 
 class ArxivSearcher(PaperSource):
     """Searcher for arXiv papers"""
@@ -18,6 +22,7 @@ class ArxivSearcher(PaperSource):
     def __init__(self):
         self.session = build_session()
         self.timeout = DEFAULT_TIMEOUT
+        self.retry_policy = RetryPolicy(max_retries=2, backoff_base_seconds=1.0)
 
     def search(self, query: str, max_results: int = 10) -> List[Paper]:
         params = {
@@ -27,19 +32,33 @@ class ArxivSearcher(PaperSource):
             'sortOrder': 'descending'
         }
         try:
-            response = self.session.get(self.BASE_URL, params=params, timeout=self.timeout)
+            response = request_with_retries(
+                self.session,
+                "GET",
+                self.BASE_URL,
+                params=params,
+                timeout=self.timeout,
+                retry_policy=self.retry_policy,
+            )
             response.raise_for_status()
-        except requests.RequestException as e:
-            print(f"Error fetching arXiv results: {e}")
+        except requests.RequestException as exc:
+            logger.warning("Error fetching arXiv results for %r: %s", query, exc)
             return []
         feed = feedparser.parse(response.content)
         papers = []
         for entry in feed.entries:
             try:
-                authors = [author.name for author in entry.authors]
+                authors = [author.name for author in getattr(entry, "authors", [])]
                 published = datetime.strptime(entry.published, '%Y-%m-%dT%H:%M:%SZ')
                 updated = datetime.strptime(entry.updated, '%Y-%m-%dT%H:%M:%SZ')
-                pdf_url = next((link.href for link in entry.links if link.type == 'application/pdf'), '')
+                pdf_url = next(
+                    (
+                        link.href
+                        for link in getattr(entry, "links", [])
+                        if getattr(link, "type", "") == 'application/pdf'
+                    ),
+                    '',
+                )
                 papers.append(Paper(
                     paper_id=entry.id.split('/')[-1],
                     title=entry.title,
@@ -50,30 +69,35 @@ class ArxivSearcher(PaperSource):
                     published_date=published,
                     updated_date=updated,
                     source='arxiv',
-                    categories=[tag.term for tag in entry.tags],
+                    categories=[tag.term for tag in getattr(entry, "tags", [])],
                     keywords=[],
                     doi=entry.get('arxiv_doi', entry.get('doi', ''))
                 ))
-            except Exception as e:
-                print(f"Error parsing arXiv entry: {e}")
+            except (AttributeError, KeyError, TypeError, ValueError) as exc:
+                logger.warning(
+                    "Error parsing arXiv entry %r: %s",
+                    getattr(entry, "id", "<unknown>"),
+                    exc,
+                )
         return papers
 
     def download_pdf(self, paper_id: str, save_path: str) -> str:
         pdf_url = f"https://arxiv.org/pdf/{paper_id}.pdf"
-        target = resolve_download_target(filename=f"{paper_id}.pdf", save_path=save_path)
-
         try:
-            response = self.session.get(pdf_url, timeout=self.timeout, stream=True)
-            response.raise_for_status()
-        except requests.RequestException as e:
-            raise RuntimeError(f"Failed to download arXiv PDF for {paper_id}: {e}") from e
+            target_path = download_pdf_file(
+                self.session,
+                pdf_url,
+                filename=f"{paper_id}.pdf",
+                save_path=save_path,
+                timeout=self.timeout,
+                retry_policy=self.retry_policy,
+            )
+        except PdfDownloadError as exc:
+            raise RuntimeError(
+                f"Failed to download arXiv PDF for {paper_id}: {exc}"
+            ) from exc
 
-        with open(target.path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=1024 * 64):
-                if chunk:
-                    f.write(chunk)
-
-        return str(target.path)
+        return str(target_path)
 
     def read_paper(self, paper_id: str, save_path: str = "./downloads") -> str:
         """Read a paper and convert it to text format.
@@ -89,20 +113,13 @@ class ArxivSearcher(PaperSource):
         pdf_path = target.path
         if not pdf_path.exists():
             pdf_path = Path(self.download_pdf(paper_id, save_path))
-        
-        # Read the PDF
+
         try:
-            reader = PdfReader(str(pdf_path))
-            text = ""
-            
-            # Extract text from each page
-            for page in reader.pages:
-                text += page.extract_text() + "\n"
-            
-            return text.strip()
-        except Exception as e:
-            print(f"Error reading PDF for paper {paper_id}: {e}")
-            return ""
+            return extract_pdf_text(pdf_path)
+        except PdfTextExtractionError as exc:
+            raise RuntimeError(
+                f"Failed to read arXiv PDF for {paper_id}: {exc}"
+            ) from exc
 
 if __name__ == "__main__":
     # 测试 ArxivSearcher 的功能

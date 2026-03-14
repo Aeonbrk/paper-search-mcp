@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 import logging
@@ -7,10 +6,9 @@ import re
 import random
 
 import requests
-from PyPDF2 import PdfReader
 
 from .._http import DEFAULT_TIMEOUT, RetryPolicy, build_session, request_with_retries
-from .._paths import resolve_download_target
+from .._pdf import PdfDownloadError, PdfTextExtractionError, download_pdf_file, extract_pdf_text
 from ..paper import Paper
 from ._base import PaperSource
 
@@ -254,22 +252,17 @@ class SemanticSearcher(PaperSource):
 
         return papers[:max_results]
 
-    def _download_pdf_file(self, paper: Paper, save_path: str) -> Path:
-        response = request_with_retries(
-            self.session,
-            "GET",
-            paper.pdf_url,
-            timeout=DEFAULT_TIMEOUT,
-            retry_policy=RetryPolicy(max_retries=3, backoff_base_seconds=2.0),
+    def _download_pdf_file(self, paper: Paper, save_path: str) -> str:
+        return str(
+            download_pdf_file(
+                self.session,
+                paper.pdf_url,
+                filename=f"semantic_{paper.paper_id}.pdf",
+                save_path=save_path,
+                timeout=DEFAULT_TIMEOUT,
+                retry_policy=RetryPolicy(max_retries=3, backoff_base_seconds=2.0),
+            )
         )
-        response.raise_for_status()
-
-        target = resolve_download_target(
-            filename=f"semantic_{paper.paper_id}.pdf",
-            save_path=save_path,
-        )
-        target.path.write_bytes(response.content)
-        return target.path
 
     def download_pdf(self, paper_id: str, save_path: str) -> str:
         """
@@ -295,10 +288,13 @@ class SemanticSearcher(PaperSource):
             if not paper or not paper.pdf_url:
                 return f"Error: Could not find PDF URL for paper {paper_id}"
             pdf_path = self._download_pdf_file(paper, save_path)
-            return str(pdf_path)
-        except Exception as e:
-            logger.error(f"PDF download error: {e}")
-            return f"Error downloading PDF: {e}"
+            return pdf_path
+        except (PdfDownloadError, requests.RequestException) as exc:
+            logger.error("PDF download error for %s: %s", paper_id, exc)
+            return f"Error downloading PDF: {exc}"
+        except Exception as exc:
+            logger.error("Unexpected PDF download error for %s: %s", paper_id, exc)
+            return f"Error downloading PDF: {exc}"
 
     def read_paper(self, paper_id: str, save_path: str = "./downloads") -> str:
         """
@@ -325,26 +321,7 @@ class SemanticSearcher(PaperSource):
                 return f"Error: Could not find PDF URL for paper {paper_id}"
 
             pdf_path = self._download_pdf_file(paper, save_path)
-
-            reader = PdfReader(pdf_path)
-            text = ""
-
-            for page_num, page in enumerate(reader.pages):
-                try:
-                    page_text = page.extract_text()
-                    if page_text:
-                        text += f"\n--- Page {page_num + 1} ---\n"
-                        text += page_text + "\n"
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to extract text from page {page_num + 1}: {e}"
-                    )
-                    continue
-
-            if not text.strip():
-                return (
-                    f"PDF downloaded to {pdf_path}, but unable to extract readable text"
-                )
+            text = extract_pdf_text(pdf_path)
 
             # Add paper metadata at the beginning
             metadata = f"Title: {paper.title}\n"
@@ -356,12 +333,18 @@ class SemanticSearcher(PaperSource):
 
             return metadata + text.strip()
 
-        except requests.RequestException as e:
-            logger.error(f"Error downloading PDF: {e}")
-            return f"Error downloading PDF: {e}"
-        except Exception as e:
-            logger.error(f"Read paper error: {e}")
-            return f"Error reading paper: {e}"
+        except PdfDownloadError as exc:
+            logger.error("Error downloading PDF for %s: %s", paper_id, exc)
+            return f"Error downloading PDF: {exc}"
+        except PdfTextExtractionError as exc:
+            logger.error("Read paper error for %s: %s", paper_id, exc)
+            return f"Error reading paper: {exc}"
+        except requests.RequestException as exc:
+            logger.error("Semantic Scholar transport error for %s: %s", paper_id, exc)
+            return f"Error downloading PDF: {exc}"
+        except Exception as exc:
+            logger.error("Unexpected read paper error for %s: %s", paper_id, exc)
+            return f"Error reading paper: {exc}"
 
     def get_paper_details(self, paper_id: str) -> Optional[Paper]:
         """

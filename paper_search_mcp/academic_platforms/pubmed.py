@@ -1,12 +1,16 @@
-# paper_search_mcp/sources/pubmed.py
+from datetime import datetime
+import logging
 from typing import List
 from xml.etree import ElementTree as ET
-from datetime import datetime
-from ..paper import Paper
+
 import requests
 
-from .._http import DEFAULT_TIMEOUT, build_session
+from .._http import DEFAULT_TIMEOUT, build_session, request_with_retries
+from ..paper import Paper
 from ._base import PaperSource
+
+logger = logging.getLogger(__name__)
+
 
 class PubMedSearcher(PaperSource):
     """Searcher for PubMed papers"""
@@ -24,19 +28,12 @@ class PubMedSearcher(PaperSource):
             'retmax': max_results,
             'retmode': 'xml'
         }
-        try:
-            search_response = self.session.get(
-                self.SEARCH_URL, params=search_params, timeout=self.timeout
-            )
-            search_response.raise_for_status()
-        except requests.RequestException as e:
-            print(f"Error fetching PubMed search results: {e}")
-            return []
-
-        try:
-            search_root = ET.fromstring(search_response.content)
-        except ET.ParseError as e:
-            print(f"Error parsing PubMed search XML: {e}")
+        search_root = self._get_xml(
+            self.SEARCH_URL,
+            search_params,
+            description="search results",
+        )
+        if search_root is None:
             return []
 
         ids = [node.text for node in search_root.findall(".//Id") if node.text]
@@ -48,21 +45,14 @@ class PubMedSearcher(PaperSource):
             'id': ','.join(ids),
             'retmode': 'xml'
         }
-        try:
-            fetch_response = self.session.get(
-                self.FETCH_URL, params=fetch_params, timeout=self.timeout
-            )
-            fetch_response.raise_for_status()
-        except requests.RequestException as e:
-            print(f"Error fetching PubMed article details: {e}")
+        fetch_root = self._get_xml(
+            self.FETCH_URL,
+            fetch_params,
+            description="article details",
+        )
+        if fetch_root is None:
             return []
 
-        try:
-            fetch_root = ET.fromstring(fetch_response.content)
-        except ET.ParseError as e:
-            print(f"Error parsing PubMed fetch XML: {e}")
-            return []
-        
         papers = []
         for article in fetch_root.findall('.//PubmedArticle'):
             try:
@@ -105,9 +95,35 @@ class PubMedSearcher(PaperSource):
                     keywords=[],
                     doi=doi
                 ))
-            except Exception as e:
-                print(f"Error parsing PubMed article: {e}")
+            except (AttributeError, TypeError, ValueError) as exc:
+                logger.warning("Error parsing PubMed article: %s", exc)
         return papers
+
+    def _get_xml(
+        self,
+        url: str,
+        params: dict[str, object],
+        *,
+        description: str,
+    ) -> ET.Element | None:
+        try:
+            response = request_with_retries(
+                self.session,
+                "GET",
+                url,
+                params=params,
+                timeout=self.timeout,
+            )
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            logger.warning("Error fetching PubMed %s: %s", description, exc)
+            return None
+
+        try:
+            return ET.fromstring(response.content)
+        except ET.ParseError as exc:
+            logger.warning("Error parsing PubMed %s XML: %s", description, exc)
+            return None
 
     def download_pdf(self, paper_id: str, save_path: str) -> str:
         """Attempt to download a paper's PDF from PubMed.

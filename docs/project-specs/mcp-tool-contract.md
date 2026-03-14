@@ -23,6 +23,18 @@ This repo exposes a source-scoped FastMCP tool surface from
 - Transport failures, blocking, or rate limits are not part of the no-hit
   contract. Those cases may still surface as errors.
 
+## Runtime error policy
+
+- For supported capabilities, runtime failures propagate as errors instead of
+  being silently converted into no-result values.
+- For unsupported capabilities, tools return explicit limitation responses
+  rather than pretending success.
+- MCP wrapper download/read paths continue to write under `docs/downloads/`,
+  even when callers pass compatibility `save_path` values.
+
+See `docs/project-specs/adapter-error-handling-policy.md` for operational
+details about retries, transport failures, and adapter logging guidance.
+
 ## Source-specific search notes
 
 - `search_biorxiv` and `search_medrxiv` remain free-text search tools at the
@@ -170,6 +182,8 @@ Clients should expect these keys:
 - Date fields are serialized as ISO 8601 strings when present.
 - `extra` is currently serialized as an opaque string via `str(self.extra)`,
   not as a structured JSON object.
+- MCP wrappers normalize download/read storage under `docs/downloads/`; path
+  parameters remain compatibility arguments.
 - Capability differences belong in the source matrix, not in tool naming.
 - PMC v1 ships the full tool trio, but `download_pmc` and `read_pmc_paper`
   are explicit placeholders that return the structured limitation format above.

@@ -37,6 +37,20 @@ async def _run_sync(callable_: Callable[..., Any], /, *args: Any, **kwargs: Any)
         return await asyncio.to_thread(callable_, *args, **kwargs)
 
 
+async def _dispatch_sync(
+    callable_: Callable[..., Any],
+    /,
+    *args: Any,
+    unsupported_fallback: Optional[Callable[[NotImplementedError], Any]] = None,
+) -> Any:
+    try:
+        return await _run_sync(callable_, *args)
+    except NotImplementedError as exc:
+        if unsupported_fallback is None:
+            raise
+        return unsupported_fallback(exc)
+
+
 def _serialize_search_results(papers: Optional[List[Any]]) -> List[Dict]:
     if not papers:
         return []
@@ -66,6 +80,47 @@ def _read_sync(searcher_cls: Type[Any], paper_id: str, save_path: str) -> str:
     return searcher.read_paper(paper_id, save_dir)
 
 
+async def _dispatch_search(
+    searcher_cls: Type[Any],
+    query: str,
+    max_results: int,
+    kwargs: Optional[Dict[str, Any]] = None,
+) -> List[Dict]:
+    return await _dispatch_sync(_search_sync, searcher_cls, query, max_results, kwargs)
+
+
+async def _dispatch_download(
+    searcher_cls: Type[Any],
+    paper_id: str,
+    save_path: str,
+    *,
+    unsupported_fallback: Optional[Callable[[NotImplementedError], str]] = None,
+) -> str:
+    return await _dispatch_sync(
+        _download_sync,
+        searcher_cls,
+        paper_id,
+        save_path,
+        unsupported_fallback=unsupported_fallback,
+    )
+
+
+async def _dispatch_read(
+    searcher_cls: Type[Any],
+    paper_id: str,
+    save_path: str,
+    *,
+    unsupported_fallback: Optional[Callable[[NotImplementedError], str]] = None,
+) -> str:
+    return await _dispatch_sync(
+        _read_sync,
+        searcher_cls,
+        paper_id,
+        save_path,
+        unsupported_fallback=unsupported_fallback,
+    )
+
+
 # Tool definitions
 @mcp.tool()
 async def search_arxiv(query: str, max_results: int = 10) -> List[Dict]:
@@ -77,7 +132,7 @@ async def search_arxiv(query: str, max_results: int = 10) -> List[Dict]:
     Returns:
         List of paper metadata in dictionary format.
     """
-    return await _run_sync(_search_sync, ArxivSearcher, query, max_results)
+    return await _dispatch_search(ArxivSearcher, query, max_results)
 
 
 @mcp.tool()
@@ -90,7 +145,7 @@ async def search_pubmed(query: str, max_results: int = 10) -> List[Dict]:
     Returns:
         List of paper metadata in dictionary format.
     """
-    return await _run_sync(_search_sync, PubMedSearcher, query, max_results)
+    return await _dispatch_search(PubMedSearcher, query, max_results)
 
 
 @mcp.tool()
@@ -103,7 +158,7 @@ async def search_pmc(query: str, max_results: int = 10) -> List[Dict]:
     Returns:
         List of paper metadata in dictionary format.
     """
-    return await _run_sync(_search_sync, PMCSearcher, query, max_results)
+    return await _dispatch_search(PMCSearcher, query, max_results)
 
 
 @mcp.tool()
@@ -116,7 +171,7 @@ async def search_biorxiv(query: str, max_results: int = 10) -> List[Dict]:
     Returns:
         List of paper metadata in dictionary format.
     """
-    return await _run_sync(_search_sync, BioRxivSearcher, query, max_results)
+    return await _dispatch_search(BioRxivSearcher, query, max_results)
 
 
 @mcp.tool()
@@ -129,7 +184,7 @@ async def search_medrxiv(query: str, max_results: int = 10) -> List[Dict]:
     Returns:
         List of paper metadata in dictionary format.
     """
-    return await _run_sync(_search_sync, MedRxivSearcher, query, max_results)
+    return await _dispatch_search(MedRxivSearcher, query, max_results)
 
 
 @mcp.tool()
@@ -142,7 +197,7 @@ async def search_google_scholar(query: str, max_results: int = 10) -> List[Dict]
     Returns:
         List of paper metadata in dictionary format.
     """
-    return await _run_sync(_search_sync, GoogleScholarSearcher, query, max_results)
+    return await _dispatch_search(GoogleScholarSearcher, query, max_results)
 
 
 @mcp.tool()
@@ -177,7 +232,7 @@ async def download_arxiv(paper_id: str, save_path: str = "./downloads") -> str:
     Returns:
         Path to the downloaded PDF file.
     """
-    return await _run_sync(_download_sync, ArxivSearcher, paper_id, save_path)
+    return await _dispatch_download(ArxivSearcher, paper_id, save_path)
 
 
 @mcp.tool()
@@ -191,10 +246,12 @@ async def download_pubmed(paper_id: str, save_path: str = "./downloads") -> str:
     Returns:
         str: Message indicating that direct PDF download is not supported.
     """
-    try:
-        return await _run_sync(_download_sync, PubMedSearcher, paper_id, save_path)
-    except NotImplementedError as e:
-        return str(e)
+    return await _dispatch_download(
+        PubMedSearcher,
+        paper_id,
+        save_path,
+        unsupported_fallback=str,
+    )
 
 
 @mcp.tool()
@@ -224,7 +281,7 @@ async def download_biorxiv(paper_id: str, save_path: str = "./downloads") -> str
     Returns:
         Path to the downloaded PDF file.
     """
-    return await _run_sync(_download_sync, BioRxivSearcher, paper_id, save_path)
+    return await _dispatch_download(BioRxivSearcher, paper_id, save_path)
 
 
 @mcp.tool()
@@ -238,7 +295,7 @@ async def download_medrxiv(paper_id: str, save_path: str = "./downloads") -> str
     Returns:
         Path to the downloaded PDF file.
     """
-    return await _run_sync(_download_sync, MedRxivSearcher, paper_id, save_path)
+    return await _dispatch_download(MedRxivSearcher, paper_id, save_path)
 
 
 @mcp.tool()
@@ -252,7 +309,7 @@ async def download_iacr(paper_id: str, save_path: str = "./downloads") -> str:
     Returns:
         Path to the downloaded PDF file.
     """
-    return await _run_sync(_download_sync, IACRSearcher, paper_id, save_path)
+    return await _dispatch_download(IACRSearcher, paper_id, save_path)
 
 
 @mcp.tool()
@@ -267,11 +324,7 @@ async def read_arxiv_paper(paper_id: str, save_path: str = "./downloads") -> str
     Returns:
         str: The extracted text content of the paper.
     """
-    try:
-        return await _run_sync(_read_sync, ArxivSearcher, paper_id, save_path)
-    except Exception as e:
-        print(f"Error reading paper {paper_id}: {e}")
-        return ""
+    return await _dispatch_read(ArxivSearcher, paper_id, save_path)
 
 
 @mcp.tool()
@@ -286,7 +339,7 @@ async def read_pubmed_paper(paper_id: str, save_path: str = "./downloads") -> st
     Returns:
         str: Message indicating that direct paper reading is not supported.
     """
-    return await _run_sync(_read_sync, PubMedSearcher, paper_id, save_path)
+    return await _dispatch_read(PubMedSearcher, paper_id, save_path)
 
 
 @mcp.tool()
@@ -317,11 +370,7 @@ async def read_biorxiv_paper(paper_id: str, save_path: str = "./downloads") -> s
     Returns:
         str: The extracted text content of the paper.
     """
-    try:
-        return await _run_sync(_read_sync, BioRxivSearcher, paper_id, save_path)
-    except Exception as e:
-        print(f"Error reading paper {paper_id}: {e}")
-        return ""
+    return await _dispatch_read(BioRxivSearcher, paper_id, save_path)
 
 
 @mcp.tool()
@@ -336,11 +385,7 @@ async def read_medrxiv_paper(paper_id: str, save_path: str = "./downloads") -> s
     Returns:
         str: The extracted text content of the paper.
     """
-    try:
-        return await _run_sync(_read_sync, MedRxivSearcher, paper_id, save_path)
-    except Exception as e:
-        print(f"Error reading paper {paper_id}: {e}")
-        return ""
+    return await _dispatch_read(MedRxivSearcher, paper_id, save_path)
 
 
 @mcp.tool()
@@ -355,11 +400,7 @@ async def read_iacr_paper(paper_id: str, save_path: str = "./downloads") -> str:
     Returns:
         str: The extracted text content of the paper.
     """
-    try:
-        return await _run_sync(_read_sync, IACRSearcher, paper_id, save_path)
-    except Exception as e:
-        print(f"Error reading paper {paper_id}: {e}")
-        return ""
+    return await _dispatch_read(IACRSearcher, paper_id, save_path)
 
 
 @mcp.tool()
@@ -376,7 +417,7 @@ async def search_semantic(query: str, year: Optional[str] = None, max_results: i
     kwargs: Dict[str, Any] = {}
     if year is not None:
         kwargs["year"] = year
-    return await _run_sync(_search_sync, SemanticSearcher, query, max_results, kwargs)
+    return await _dispatch_search(SemanticSearcher, query, max_results, kwargs)
 
 
 @mcp.tool()
@@ -398,7 +439,7 @@ async def download_semantic(paper_id: str, save_path: str = "./downloads") -> st
     Returns:
         Path to the downloaded PDF file.
     """ 
-    return await _run_sync(_download_sync, SemanticSearcher, paper_id, save_path)
+    return await _dispatch_download(SemanticSearcher, paper_id, save_path)
 
 
 @mcp.tool()
@@ -421,11 +462,7 @@ async def read_semantic_paper(paper_id: str, save_path: str = "./downloads") -> 
     Returns:
         str: The extracted text content of the paper.
     """
-    try:
-        return await _run_sync(_read_sync, SemanticSearcher, paper_id, save_path)
-    except Exception as e:
-        print(f"Error reading paper {paper_id}: {e}")
-        return ""
+    return await _dispatch_read(SemanticSearcher, paper_id, save_path)
 
 
 @mcp.tool()
@@ -472,7 +509,7 @@ async def search_crossref(
         }.items()
         if value is not None
     }
-    return await _run_sync(_search_sync, CrossRefSearcher, query, max_results, search_kwargs)
+    return await _dispatch_search(CrossRefSearcher, query, max_results, search_kwargs)
 
 
 @mcp.tool()
@@ -510,10 +547,12 @@ async def download_crossref(paper_id: str, save_path: str = "./downloads") -> st
         CrossRef is a citation database and doesn't provide direct PDF downloads.
         Use the DOI to access the paper through the publisher's website.
     """
-    try:
-        return await _run_sync(_download_sync, CrossRefSearcher, paper_id, save_path)
-    except NotImplementedError as e:
-        return str(e)
+    return await _dispatch_download(
+        CrossRefSearcher,
+        paper_id,
+        save_path,
+        unsupported_fallback=str,
+    )
 
 
 @mcp.tool()
@@ -532,7 +571,7 @@ async def read_crossref_paper(paper_id: str, save_path: str = "./downloads") -> 
         CrossRef is a citation database and doesn't provide direct paper content.
         Use the DOI to access the paper through the publisher's website.
     """
-    return await _run_sync(_read_sync, CrossRefSearcher, paper_id, save_path)
+    return await _dispatch_read(CrossRefSearcher, paper_id, save_path)
 
 
 if __name__ == "__main__":

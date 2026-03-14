@@ -15,7 +15,16 @@
 
 - Creates the FastMCP server named `paper_search_server`
 - Registers the public MCP tools
-- Adapts source searchers into serialized MCP responses
+- Uses centralized search/download/read dispatch wrappers
+- Enforces canonical MCP download/read routing under `docs/downloads/`
+
+### Shared utilities
+
+- `paper_search_mcp/_http.py` — shared session, retry, pooling, and transport
+  error helpers
+- `paper_search_mcp/_pdf.py` — shared streamed PDF download and text extraction
+  helpers
+- `paper_search_mcp/_paths.py` — canonical safe path routing for downloads
 
 ### `paper_search_mcp/paper.py`
 
@@ -28,6 +37,7 @@
 - `pubmed.py` — PubMed metadata adapter
 - `biorxiv.py` — bioRxiv adapter
 - `medrxiv.py` — medRxiv adapter
+- `_preprint_base.py` — shared base for bioRxiv/medRxiv behavior
 - `google_scholar.py` — Google Scholar scraping adapter
 - `iacr.py` — IACR search, detail, download, and read adapter
 - `semantic.py` — Semantic Scholar API adapter
@@ -36,13 +46,19 @@
 
 ## Tests
 
-- `tests/test_server.py` — basic server-level integration behavior
-- `tests/test_*.py` — mostly live-network adapter checks
-- Test suite currently mixes smoke and integration concerns
+- `tests/test_server.py` — server dispatch and unsupported fallback behavior
+- `tests/test_search_contract.py` — no-hit and failure-propagation contracts
+- `tests/test_http.py` and `tests/test_http_resilience.py` — shared transport
+  config and retry behavior
+- `tests/test_pdf_utils.py` — shared streamed PDF/download extraction behavior
+- `tests/test_performance_smoke.py` — offline latency smoke thresholds
+- `tests/test_preprint_base.py` — shared bioRxiv/medRxiv base behavior
+- `tests/test_*.py` — source-level unit and optional live checks
 
 ## Durable docs
 
-- `docs/project-specs/` — public behavior and source matrix
+- `docs/project-specs/` — public behavior, source matrix, reliability policy,
+  and perf/stability targets
 - `docs/playbooks/` — validation and release workflows
 - `docs/exec-plans/` — durable implementation tracking
 - `docs/references/` — upstream and service references
@@ -50,6 +66,8 @@
 ## First places to edit
 
 - Add or change tool behavior: `paper_search_mcp/server.py`
+- Add or change shared transport/PDF behavior:
+  `paper_search_mcp/_http.py` and `paper_search_mcp/_pdf.py`
 - Add or change a source: `paper_search_mcp/academic_platforms/`
 - Change the response schema: `paper_search_mcp/paper.py`
 - Update capability docs after behavior changes:

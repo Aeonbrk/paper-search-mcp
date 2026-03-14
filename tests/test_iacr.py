@@ -7,6 +7,7 @@ from unittest import mock
 import requests
 
 from paper_search_mcp.academic_platforms.iacr import IACRSearcher
+from paper_search_mcp.paper import Paper
 from tests._offline import OfflineTestCase, read_fixture_text
 
 
@@ -141,6 +142,38 @@ class TestIACRSearcherOffline(OfflineTestCase):
         ):
             with self.assertRaisesRegex(requests.RequestException, "iacr unavailable"):
                 searcher.search("network failure", max_results=2, fetch_details=False)
+
+    def test_search_caps_detail_fetches_when_partial_items_reduce_yield(self):
+        searcher = IACRSearcher()
+        response = mock.Mock()
+        response.text = read_fixture_text("iacr", "search_partial.html")
+
+        detail_paper = Paper(
+            paper_id="2025/1014",
+            title="Detailed IACR Paper One",
+            authors=["Alice Example", "Bob Example"],
+            abstract="Detailed fixture abstract one.",
+            url="https://eprint.iacr.org/2025/1014",
+            pdf_url="https://eprint.iacr.org/2025/1014.pdf",
+            published_date=None,
+            source="iacr",
+            doi="",
+        )
+
+        with (
+            mock.patch.object(searcher, "_fetch_response", return_value=response),
+            mock.patch.object(
+                searcher,
+                "get_paper_details",
+                side_effect=[detail_paper, None, AssertionError("detail fetch budget exceeded")],
+            ) as mock_details,
+        ):
+            papers = searcher.search("partial details", max_results=2, fetch_details=True)
+
+        self.assertEqual(mock_details.call_count, 2)
+        self.assertEqual(len(papers), 2)
+        self.assertEqual(papers[0].title, "Detailed IACR Paper One")
+        self.assertEqual(papers[1].paper_id, "2024/0003")
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ from unittest import mock
 import requests
 
 from paper_search_mcp.academic_platforms.google_scholar import GoogleScholarSearcher
+from tests._offline import read_fixture_text
 
 
 LIVE_TESTS_ENABLED = os.getenv("PAPER_SEARCH_LIVE_TESTS") == "1"
@@ -65,7 +66,7 @@ class TestGoogleScholarSearcher(unittest.TestCase):
     def test_search_returns_empty_list_when_page_has_no_results(self):
         response = mock.Mock()
         response.raise_for_status = mock.Mock()
-        response.text = "<html><body><div id='gs_res_ccl_mid'></div></body></html>"
+        response.text = read_fixture_text("google_scholar", "search_no_results.html")
 
         with (
             mock.patch(
@@ -78,6 +79,25 @@ class TestGoogleScholarSearcher(unittest.TestCase):
 
         self.assertEqual(papers, [])
         mock_request.assert_called_once()
+
+    def test_search_stops_after_partial_page_without_extra_request(self):
+        response = mock.Mock()
+        response.raise_for_status = mock.Mock()
+        response.text = read_fixture_text("google_scholar", "search_partial_results.html")
+
+        with (
+            mock.patch(
+                "paper_search_mcp.academic_platforms.google_scholar.request_with_retries",
+                return_value=response,
+            ) as mock_request,
+            mock.patch("paper_search_mcp.academic_platforms.google_scholar.time.sleep") as mock_sleep,
+        ):
+            papers = self.searcher.search("partial page", max_results=15)
+
+        self.assertEqual(len(papers), 1)
+        self.assertEqual(papers[0].title, "Offline Scholar Paper One")
+        mock_request.assert_called_once()
+        mock_sleep.assert_not_called()
 
     def test_search_propagates_transport_failures(self):
         with mock.patch(

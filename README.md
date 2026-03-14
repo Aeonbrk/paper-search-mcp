@@ -15,6 +15,7 @@ extracting text.
 - Normalize source results through a shared `Paper` model.
 - Keep source-specific capabilities explicit instead of pretending every source
   works the same way.
+- Keep error handling deterministic and source-appropriate across adapters.
 
 For the maintained repo shape and capability boundaries, start with:
 
@@ -47,23 +48,32 @@ Support is intentionally uneven:
 - scraping-based sources are more fragile than API-backed sources.
 - ordinary no-hit search queries return empty results instead of transport
   errors.
+- supported tool paths now share centralized HTTP retry/timeout policy and
+  canonical download routing under `docs/downloads/`.
 
 See `docs/project-specs/source-capability-matrix.md` for the current source
 matrix.
 
-Two search adapters need extra context:
+Two source families need extra context:
 
 - `search_biorxiv` and `search_medrxiv` stay query-driven at the MCP surface,
   but the upstream API does not expose a documented free-text endpoint. The
   repo now fetches a bounded recent metadata window and applies local matching
   so nonsense queries return `[]` instead of unrelated recent papers.
-- Semantic Scholar is still part of the repo surface, but this optimization
-  pass did not change its behavior.
+- bioRxiv and medRxiv now share a single internal preprint base so reliability
+  fixes land in one place.
+- Semantic Scholar remains on the same public tool surface, but now uses the
+  shared PDF helper path used by other download/read adapters.
 
 Sci-Hub-related code exists in the repo, but it is not part of the default
 supported surface.
 
 Supported download/read helpers write under `docs/downloads/`.
+
+Operational guardrails live in:
+
+- `docs/project-specs/performance-stability-targets.md`
+- `docs/project-specs/adapter-error-handling-policy.md`
 
 ## Quick start
 
@@ -113,7 +123,7 @@ uv sync --locked
 uv run -m paper_search_mcp.server
 ```
 
-Default verification for doc or governance changes:
+Default verification for runtime or doc changes:
 
 ```bash
 uv sync --locked
@@ -121,6 +131,14 @@ markdownlint AGENTS.md ARCHITECTURE.md README.md docs/**/*.md codemap/**/*.md
 uv run python -m compileall paper_search_mcp tests
 uv run python -c "import paper_search_mcp.server as s; print(s.mcp.name)"
 uv run python -m unittest discover -q
+```
+
+Targeted reliability/performance checks:
+
+```bash
+uv run python -m unittest -q tests.test_http tests.test_pdf_utils
+uv run python -m unittest -q tests.test_http_resilience tests.test_performance_smoke
+uv run python scripts/benchmarks/tool_latency_smoke.py --dry-run --iterations 3
 ```
 
 If your shell does not expand `**`, quote the globs or pass explicit file lists

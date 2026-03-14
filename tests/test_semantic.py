@@ -89,7 +89,6 @@ class TestSemanticSearcher(unittest.TestCase):
             if "Error" not in result and len(result) > 100:
                 self.assertIn("Title:", result)
                 self.assertIn("PDF downloaded to:", result)
-                self.assertIn("--- Page", result)
         finally:
             output_dir = Path("docs/downloads") / save_path
             if output_dir.exists():
@@ -124,6 +123,52 @@ class TestSemanticSearcherOffline(OfflineTestCase):
         self.assertEqual(serialized["source"], "semantic")
         self.assertEqual(serialized["categories"], "Computer Science; Mathematics")
         self.assertEqual(serialized["doi"], "10.1000/semantic.one")
+
+    def test_download_pdf_uses_shared_pdf_helper(self):
+        searcher = SemanticSearcher()
+        paper = mock.Mock(paper_id="sem_one", pdf_url="https://example.org/semantic-one.pdf")
+
+        with (
+            mock.patch.object(searcher, "get_paper_details", return_value=paper),
+            mock.patch(
+                "paper_search_mcp.academic_platforms.semantic.download_pdf_file",
+                return_value=Path("docs/downloads/offline/semantic_sem_one.pdf"),
+            ) as mock_download,
+        ):
+            result = searcher.download_pdf("sem_one", "offline")
+
+        self.assertEqual(result, "docs/downloads/offline/semantic_sem_one.pdf")
+        mock_download.assert_called_once()
+
+    def test_read_paper_uses_shared_extraction_helper(self):
+        searcher = SemanticSearcher()
+        paper = mock.Mock(
+            paper_id="sem_one",
+            pdf_url="https://example.org/semantic-one.pdf",
+            title="Offline Semantic Paper One",
+            authors=["Alice Example", "Bob Example"],
+            published_date="2025-03-01",
+            url="https://example.org/semantic-one",
+        )
+
+        with (
+            mock.patch.object(searcher, "get_paper_details", return_value=paper),
+            mock.patch.object(
+                searcher,
+                "_download_pdf_file",
+                return_value="docs/downloads/offline/semantic_sem_one.pdf",
+            ),
+            mock.patch(
+                "paper_search_mcp.academic_platforms.semantic.extract_pdf_text",
+                return_value="semantic text body",
+            ) as mock_extract,
+        ):
+            result = searcher.read_paper("sem_one", "offline")
+
+        self.assertIn("Title: Offline Semantic Paper One", result)
+        self.assertIn("PDF downloaded to: docs/downloads/offline/semantic_sem_one.pdf", result)
+        self.assertTrue(result.endswith("semantic text body"))
+        mock_extract.assert_called_once_with("docs/downloads/offline/semantic_sem_one.pdf")
 
 
 if __name__ == "__main__":

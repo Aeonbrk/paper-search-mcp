@@ -15,8 +15,9 @@ logger = logging.getLogger(__name__)
 
 class GoogleScholarSearcher(PaperSource):
     """Custom implementation of Google Scholar paper search"""
-    
+
     SCHOLAR_URL = "https://scholar.google.com/scholar"
+    RESULTS_PER_PAGE = 10
     BROWSERS = [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
@@ -97,7 +98,7 @@ class GoogleScholarSearcher(PaperSource):
         """
         papers = []
         start = 0
-        results_per_page = min(10, max_results)
+        results_per_page = min(self.RESULTS_PER_PAGE, max_results)
         max_pages = max(1, ceil(max_results / results_per_page))
         retry_policy = RetryPolicy(
             max_retries=2,
@@ -146,6 +147,9 @@ class GoogleScholarSearcher(PaperSource):
                     papers.append(paper)
 
             if len(papers) >= max_results:
+                break
+
+            if len(results) < results_per_page:
                 break
 
             start += results_per_page

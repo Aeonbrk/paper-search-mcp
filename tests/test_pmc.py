@@ -4,6 +4,7 @@ import unittest
 from unittest import mock
 from xml.etree import ElementTree as ET
 
+import paper_search_mcp.academic_platforms.pmc as pmc_module
 from paper_search_mcp.academic_platforms.pmc import PMCSearcher
 from paper_search_mcp.server import download_pmc, read_pmc_paper
 from tests._offline import OfflineTestCase, read_fixture_text
@@ -29,14 +30,16 @@ class TestPMCSearcherOffline(OfflineTestCase):
         fetch_response.raise_for_status = mock.Mock()
 
         with mock.patch.object(
-            searcher.session,
-            "get",
+            pmc_module,
+            "request_with_retries",
             side_effect=[search_response, fetch_response],
-        ) as mock_get:
+        ) as mock_request:
             papers = searcher.search("single cell atlas", max_results=2)
 
-        self.assertEqual(mock_get.call_count, 2)
-        mock_get.assert_any_call(
+        self.assertEqual(mock_request.call_count, 2)
+        mock_request.assert_any_call(
+            searcher.session,
+            "GET",
             searcher.SEARCH_URL,
             params={
                 "db": "pmc",
@@ -46,7 +49,9 @@ class TestPMCSearcherOffline(OfflineTestCase):
             },
             timeout=searcher.timeout,
         )
-        mock_get.assert_any_call(
+        mock_request.assert_any_call(
+            searcher.session,
+            "GET",
             searcher.FETCH_URL,
             params={
                 "db": "pmc",

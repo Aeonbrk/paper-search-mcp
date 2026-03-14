@@ -4,6 +4,8 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
+import requests
+
 import paper_search_mcp.academic_platforms.arxiv as arxiv_module
 from paper_search_mcp.academic_platforms.arxiv import ArxivSearcher
 from tests._offline import OfflineTestCase, read_fixture_text
@@ -92,10 +94,15 @@ class TestArxivSearcherOffline(OfflineTestCase):
         response.content = read_fixture_text("arxiv", "search_response.xml").encode("utf-8")
         response.raise_for_status = mock.Mock()
 
-        with mock.patch.object(searcher.session, "get", return_value=response) as mock_get:
+        with mock.patch(
+            "paper_search_mcp.academic_platforms.arxiv.request_with_retries",
+            return_value=response,
+        ) as mock_request:
             papers = searcher.search("quantum gravity", max_results=2)
 
-        mock_get.assert_called_once_with(
+        mock_request.assert_called_once_with(
+            searcher.session,
+            "GET",
             searcher.BASE_URL,
             params={
                 "search_query": "quantum gravity",
@@ -104,6 +111,7 @@ class TestArxivSearcherOffline(OfflineTestCase):
                 "sortOrder": "descending",
             },
             timeout=searcher.timeout,
+            retry_policy=searcher.retry_policy,
         )
         response.raise_for_status.assert_called_once_with()
         self.assertEqual(len(papers), 2)
@@ -130,6 +138,53 @@ class TestArxivSearcherOffline(OfflineTestCase):
         self.assertEqual(serialized["source"], "arxiv")
         self.assertEqual(serialized["categories"], "cs.AI; cs.LG")
         self.assertEqual(serialized["doi"], "10.1000/example-doi")
+
+    def test_search_returns_empty_list_on_transport_failure(self):
+        searcher = ArxivSearcher()
+
+        with mock.patch(
+            "paper_search_mcp.academic_platforms.arxiv.request_with_retries",
+            side_effect=requests.RequestException("arxiv unavailable"),
+        ):
+            papers = searcher.search("network failure", max_results=2)
+
+        self.assertEqual(papers, [])
+
+    def test_download_and_read_use_shared_pdf_helpers(self):
+        searcher = ArxivSearcher()
+
+        with (
+            mock.patch(
+                "paper_search_mcp.academic_platforms.arxiv.download_pdf_file",
+                return_value=Path("docs/downloads/offline/arxiv.pdf"),
+            ) as mock_download,
+            mock.patch(
+                "paper_search_mcp.academic_platforms.arxiv.extract_pdf_text",
+                return_value="offline text",
+            ) as mock_extract,
+        ):
+            downloaded = searcher.download_pdf("2503.12345v1", "./downloads")
+            content = searcher.read_paper("2503.12345v1", save_path="offline")
+
+        self.assertEqual(downloaded, "docs/downloads/offline/arxiv.pdf")
+        self.assertEqual(content, "offline text")
+        mock_download.assert_any_call(
+            searcher.session,
+            "https://arxiv.org/pdf/2503.12345v1.pdf",
+            filename="2503.12345v1.pdf",
+            save_path="./downloads",
+            timeout=searcher.timeout,
+            retry_policy=searcher.retry_policy,
+        )
+        mock_download.assert_any_call(
+            searcher.session,
+            "https://arxiv.org/pdf/2503.12345v1.pdf",
+            filename="2503.12345v1.pdf",
+            save_path="offline",
+            timeout=searcher.timeout,
+            retry_policy=searcher.retry_policy,
+        )
+        mock_extract.assert_called_once_with(Path("docs/downloads/offline/arxiv.pdf"))
 
 
 if __name__ == "__main__":

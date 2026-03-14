@@ -97,6 +97,28 @@ class TestPaperSearchServer(unittest.TestCase):
             "docs/downloads",
         )
 
+    def test_dispatch_sync_propagates_unhandled_failures(self):
+        async def run_case():
+            def fail():
+                raise RuntimeError("dispatch failure")
+
+            return await server._dispatch_sync(fail)
+
+        with self.assertRaisesRegex(RuntimeError, "dispatch failure"):
+            asyncio.run(run_case())
+
+    def test_dispatch_sync_uses_unsupported_fallback(self):
+        async def run_case():
+            def unsupported():
+                raise NotImplementedError("not supported")
+
+            return await server._dispatch_sync(
+                unsupported,
+                unsupported_fallback=lambda exc: f"LIMITED: {exc}",
+            )
+
+        self.assertEqual(asyncio.run(run_case()), "LIMITED: not supported")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -73,6 +73,65 @@ NON_SEMANTIC_SEARCH_CASES = (
     },
 )
 
+READ_PROPAGATION_CASES = (
+    {
+        "tool_name": "read_arxiv_paper",
+        "searcher_attr": "ArxivSearcher",
+    },
+    {
+        "tool_name": "read_biorxiv_paper",
+        "searcher_attr": "BioRxivSearcher",
+    },
+    {
+        "tool_name": "read_medrxiv_paper",
+        "searcher_attr": "MedRxivSearcher",
+    },
+    {
+        "tool_name": "read_iacr_paper",
+        "searcher_attr": "IACRSearcher",
+    },
+    {
+        "tool_name": "read_semantic_paper",
+        "searcher_attr": "SemanticSearcher",
+    },
+)
+
+UNSUPPORTED_DOWNLOAD_CASES = (
+    {
+        "tool_name": "download_pubmed",
+        "searcher_attr": "PubMedSearcher",
+        "message": "PubMed download unsupported",
+    },
+    {
+        "tool_name": "download_crossref",
+        "searcher_attr": "CrossRefSearcher",
+        "message": "CrossRef download unsupported",
+    },
+)
+
+SUPPORTED_DOWNLOAD_PROPAGATION_CASES = (
+    {
+        "tool_name": "download_arxiv",
+        "searcher_attr": "ArxivSearcher",
+    },
+    {
+        "tool_name": "download_biorxiv",
+        "searcher_attr": "BioRxivSearcher",
+    },
+    {
+        "tool_name": "download_medrxiv",
+        "searcher_attr": "MedRxivSearcher",
+    },
+    {
+        "tool_name": "download_iacr",
+        "searcher_attr": "IACRSearcher",
+    },
+    {
+        "tool_name": "download_semantic",
+        "searcher_attr": "SemanticSearcher",
+    },
+)
+
 
 async def _immediate_run(callable_, /, *args, **kwargs):
     return callable_(*args, **kwargs)
@@ -129,6 +188,61 @@ class TestSearchContract(OfflineTestCase):
                 self._run_without_event_loop(
                     server.search_pubmed(query="rate limited", max_results=2)
                 )
+
+    def test_supported_read_tools_propagate_runtime_failures(self):
+        for case in READ_PROPAGATION_CASES:
+            class BrokenReader:
+                def read_paper(self, *args, **kwargs):
+                    raise RuntimeError("paper read failed")
+
+            tool = getattr(server, case["tool_name"])
+
+            with self.subTest(tool=case["tool_name"]):
+                with (
+                    mock.patch.object(server, case["searcher_attr"], BrokenReader),
+                    mock.patch("paper_search_mcp.server._run_sync", new=_immediate_run),
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "paper read failed"):
+                        self._run_without_event_loop(
+                            tool(paper_id="paper-id", save_path="./downloads")
+                        )
+
+    def test_unsupported_download_tools_return_limitation_messages(self):
+        for case in UNSUPPORTED_DOWNLOAD_CASES:
+            class UnsupportedDownloader:
+                def download_pdf(self, *args, **kwargs):
+                    raise NotImplementedError(case["message"])
+
+            tool = getattr(server, case["tool_name"])
+
+            with self.subTest(tool=case["tool_name"]):
+                with (
+                    mock.patch.object(server, case["searcher_attr"], UnsupportedDownloader),
+                    mock.patch("paper_search_mcp.server._run_sync", new=_immediate_run),
+                ):
+                    result = self._run_without_event_loop(
+                        tool(paper_id="paper-id", save_path="./downloads")
+                    )
+
+                self.assertEqual(result, case["message"])
+
+    def test_supported_download_tools_propagate_runtime_failures(self):
+        for case in SUPPORTED_DOWNLOAD_PROPAGATION_CASES:
+            class BrokenDownloader:
+                def download_pdf(self, *args, **kwargs):
+                    raise RuntimeError("paper download failed")
+
+            tool = getattr(server, case["tool_name"])
+
+            with self.subTest(tool=case["tool_name"]):
+                with (
+                    mock.patch.object(server, case["searcher_attr"], BrokenDownloader),
+                    mock.patch("paper_search_mcp.server._run_sync", new=_immediate_run),
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "paper download failed"):
+                        self._run_without_event_loop(
+                            tool(paper_id="paper-id", save_path="./downloads")
+                        )
 
     def _run_without_event_loop(self, coroutine):
         try:

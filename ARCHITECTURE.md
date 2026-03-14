@@ -19,12 +19,18 @@ depends on live upstream services rather than local data.
 - `paper_search_mcp/server.py` creates the FastMCP server.
 - The server exposes one tool family per paper source.
 - Tool names are source-scoped and currently stable.
+- Search/download/read wrappers now go through centralized dispatch helpers with
+  a bounded concurrency semaphore.
+- MCP wrapper paths force canonical writes under `docs/downloads/`.
 
 ### Adapter layer
 
 - `paper_search_mcp/academic_platforms/` contains one adapter module per source.
-- Each adapter hides source-specific request logic, parsing, and PDF handling.
-- Adapter quality varies by upstream API stability and site behavior.
+- Shared HTTP transport behavior is centralized in `paper_search_mcp/_http.py`.
+- Shared streamed PDF download and extraction behavior is centralized in
+  `paper_search_mcp/_pdf.py`.
+- bioRxiv and medRxiv now share `academic_platforms/_preprint_base.py`.
+- Adapter quality still varies by upstream API stability and site behavior.
 
 ### Normalized paper model
 
@@ -34,16 +40,20 @@ depends on live upstream services rather than local data.
 
 ### Validation layer
 
-- `tests/` mainly exercises live integrations.
-- Current tests are informative but not a fast, deterministic acceptance gate.
-- Offline checks such as import smoke tests and `compileall` are the default
-  verification baseline for doc-heavy changes.
+- `tests/` now includes deterministic offline regression coverage for transport
+  policy, adapter contracts, and performance smoke thresholds.
+- Optional live checks remain opt-in and scoped to targeted adapters.
+- Offline checks (`compileall`, contract tests, and smoke tests) are the
+  default acceptance gate.
 
 ## Design Constraints
 
 - The repo optimizes for breadth of source support over perfect uniformity.
 - Some sources are metadata-only, some permit PDF download, and some can also
   extract text from downloaded PDFs.
+- No-hit search behavior must remain deterministic (`[]`) and separate from
+  transport/runtime failures.
+- Unsupported capabilities must stay explicit instead of silently degrading.
 - External services may rate-limit, change HTML structure, or block scraping.
 - The repo should document these differences instead of hiding them.
 
@@ -55,6 +65,6 @@ The repo does not currently include:
 - persistent storage,
 - generated API documentation,
 - repo-local control-plane orchestration,
-- a reliable offline fixture suite for all adapters.
+- fully deterministic offline fixtures for every single adapter path.
 
 Those omissions are part of the current architecture, not missing polish.

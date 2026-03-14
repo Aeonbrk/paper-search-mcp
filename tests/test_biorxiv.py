@@ -68,13 +68,10 @@ class TestBioRxivSearcherOffline(OfflineTestCase):
         requested_urls = []
 
         def fake_request(*args, **kwargs):
-            requested_urls.append(args[2])
+            requested_urls.append(args[0])
             return response
 
-        with mock.patch(
-            "paper_search_mcp.academic_platforms.biorxiv.request_with_retries",
-            side_effect=fake_request,
-        ) as mock_request:
+        with mock.patch.object(searcher, "_request", side_effect=fake_request) as mock_request:
             papers = searcher.search("single cell atlas", max_results=3)
 
         self.assertEqual(mock_request.call_count, 1)
@@ -93,10 +90,7 @@ class TestBioRxivSearcherOffline(OfflineTestCase):
         response.raise_for_status = mock.Mock()
         response.json.return_value = read_fixture_json("biorxiv", "search_empty.json")
 
-        with mock.patch(
-            "paper_search_mcp.academic_platforms.biorxiv.request_with_retries",
-            return_value=response,
-        ) as mock_request:
+        with mock.patch.object(searcher, "_request", return_value=response) as mock_request:
             papers = searcher.search("quantum hedgehog entropy", max_results=3)
 
         self.assertEqual(mock_request.call_count, 1)

@@ -17,26 +17,43 @@ detail in `docs/exec-plans/`.
 
 ## Active
 
+- None currently.
+
+## Completed
+
 ### Optimize Paper Search Runtime Quality
 
-- Status: planned
-- Mode: swarm_waves
+- Status: completed
+- Mode: super_swarm
 - Difficulty: score=10 level=Complex
   rationale="Cross-cuts shared HTTP/PDF utilities, server dispatch,
-  multiple adapters, deterministic regression tests, and durable docs
-  while preserving the existing MCP contract and source capability
+  multiple adapters, deterministic regression tests, benchmarks, and
+  durable docs while preserving the MCP contract and source capability
   boundaries."
 - Rationale: Improve performance, stability, and maintainability via
   dependency-aware refactors with stronger offline validation.
 - ExecPlan:
   `docs/exec-plans/active/2026-03-14_1409_BJT_paper-search-perf-stability-maintainability.md`
-- Evidence: ExecPlan created with explicit dependencies, writes/creates
-  scopes, and mutex declarations for parallel execution safety.
-- Next steps: execute Wave 1 (`T1` to `T4`) with orchestrator-owned
-  tracker updates.
+- Evidence: Added shared transport and PDF utility layers
+  (`paper_search_mcp/_http.py`, `paper_search_mcp/_pdf.py`), centralized
+  server dispatch in `paper_search_mcp/server.py`, and shared preprint
+  logic in `paper_search_mcp/academic_platforms/_preprint_base.py`;
+  added deterministic performance harness
+  (`scripts/benchmarks/tool_latency_smoke.py`) and targets
+  (`docs/project-specs/performance-stability-targets.md`); added
+  reliability/perf regression tests (`tests/test_http.py`,
+  `tests/test_pdf_utils.py`, `tests/test_http_resilience.py`,
+  `tests/test_performance_smoke.py`, `tests/test_preprint_base.py`);
+  synchronized docs and codemap with new guardrails; `uv sync --locked`
+  passed; `uv run python -m compileall paper_search_mcp tests` passed;
+  `uv run python -c "import paper_search_mcp.server as s; print(s.mcp.name)"`
+  printed `paper_search_server`; `uv run python -m unittest discover -q`
+  passed with `OK (skipped=26)`; `markdownlint README.md ARCHITECTURE.md
+  docs/PROJECT_SENSE.md docs/PLANS.md` passed; `find docs -type f -name
+  '*.md' | sort | xargs markdownlint` passed; `find codemap -type f -name
+  '*.md' | sort | xargs markdownlint` passed.
+- Next steps: none.
 - Last updated: 2026-03-14
-
-## Completed
 
 ### Stabilize And Align Non-Semantic Search Tools
 
