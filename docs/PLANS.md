@@ -19,6 +19,20 @@ detail in `docs/exec-plans/`.
 
 ## Completed
 
+### Regenerate CODEBASE_MAP via Cartographer
+
+- Status: completed
+- Mode: swarm_waves
+- Difficulty: score=0 level=Simple
+- Rationale: Regenerate `docs/CODEBASE_MAP.md` from fresh scans and worker
+  handoffs to keep structural navigation current.
+- ExecPlan: n/a
+- Evidence: Regenerated `docs/CODEBASE_MAP.md` using the Cartographer scanner
+  plus parallel handoff workers covering runtime code, adapters, tests, docs,
+  and repo ops; `markdownlint docs/CODEBASE_MAP.md docs/PLANS.md` passed.
+- Next steps: none.
+- Last updated: 2026-03-14
+
 ### Sync global template + optimize last commit
 
 - Status: completed
