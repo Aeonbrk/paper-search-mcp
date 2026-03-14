@@ -27,6 +27,28 @@ PAPER_SEARCH_LIVE_TESTS=1 uv run python -m unittest -q tests.test_semantic
 PAPER_SEARCH_LIVE_TESTS=1 uv run python -m unittest -q tests.test_mcp_live
 ```
 
+Optional: quick status table for all `search_*` tools:
+
+```bash
+uv run python scripts/health_check_search_tools.py
+uv run python scripts/health_check_search_tools.py --raw > /tmp/search_health.md
+uv run python scripts/health_check_search_tools.py --json | \
+  python -m json.tool >/dev/null
+uv run python scripts/health_check_search_tools.py --strict
+uv run python scripts/health_check_search_tools.py --no-preflight
+```
+
+If `glow` is installed, the script renders Markdown via `glow` when stdout is a
+TTY.
+
+Notes:
+
+- This script performs live network calls and may flake due to upstream rate
+  limits, scraping defenses, or transient outages.
+- `--json` emits machine-readable output; `--raw` prints Markdown without
+  rendering via `glow`.
+- `--strict` exits non-zero if any tool check fails (useful for automation).
+
 Rules:
 
 - run the narrowest module that matches the changed adapter,

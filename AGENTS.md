@@ -9,7 +9,7 @@ fits a small Python MCP package.
 2. `ARCHITECTURE.md`
 3. `docs/PROJECT_SENSE.md`
 4. `docs/project-specs/source-capability-matrix.md`
-5. `codemap/index.md`
+5. `docs/CODEBASE_MAP.md`
 6. `docs/PLANS.md`
 
 ## Local Invariants
@@ -20,7 +20,7 @@ fits a small Python MCP package.
   `paper-search-mcp`, `paper_search_mcp`, Smithery metadata, and existing MCP
   tool names stay stable.
 - Treat `docs/` as the durable system of record for repo-specific guidance.
-- Treat `codemap/` as a navigation aid, not a second knowledge base.
+- Treat `docs/CODEBASE_MAP.md` as the durable navigation surface.
 - Treat `runtime/run_ledger/` and `downloads/` as local runtime artifacts only;
   do not commit their contents.
 - Keep source-by-source caveats explicit. Do not document every adapter as if it

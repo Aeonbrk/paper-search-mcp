@@ -129,7 +129,7 @@ Default verification for runtime or doc changes:
 
 ```bash
 uv sync --locked
-markdownlint AGENTS.md ARCHITECTURE.md README.md docs/**/*.md codemap/**/*.md
+markdownlint AGENTS.md ARCHITECTURE.md README.md docs/**/*.md
 uv run python -m compileall paper_search_mcp tests
 uv run python -c "import paper_search_mcp.server as s; print(s.mcp.name)"
 uv run python -m unittest discover -q
@@ -162,7 +162,7 @@ See `docs/playbooks/validation.md` for the repo's validation flow and
 - `paper_search_mcp/paper.py` — normalized paper schema
 - `tests/` — offline smoke tests plus opt-in live adapter checks
 - `docs/` — durable repo guidance
-- `codemap/` — docs-first navigation layer
+- `docs/CODEBASE_MAP.md` — code navigation map
 
 ## Demo
 

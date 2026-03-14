@@ -19,6 +19,36 @@ detail in `docs/exec-plans/`.
 
 ## Completed
 
+### Sync global template + optimize last commit
+
+- Status: completed
+- Mode: swarm_waves
+- Difficulty: score=2 level=Medium
+  rationale="Aligns governance/navigation docs to the updated global template
+  and rewrites history via `git commit --amend`."
+- Rationale: Align the repo-local project template adoption doc with the
+  updated global `.codex` template, migrate navigation to `docs/CODEBASE_MAP.md`
+  (retiring the old codemap navigation folder), and refine the search-tool
+  health check with clearer
+  docs and failure modes.
+- ExecPlan:
+  `docs/exec-plans/completed/2026-03-14_1859_BJT_global-template-sync-last-commit-opt.md`
+- Evidence: `docs/design-docs/project-template.md` now matches the updated
+  global template structure while preserving this repo’s deliberate omissions;
+  `docs/CODEBASE_MAP.md` replaces the previous CODEBASE_MAP file from the
+  codemap reference folder with no content loss, and all primary docs now
+  reference the canonical path; the
+  search-tool health check script validates `--repo-root` / `--server-command`
+  early and documents `--json`, `--strict`, and `--no-preflight`; the ripgrep
+  check found no codemap references outside `docs/exec-plans/**`; `uv sync
+  --locked` passed; `find docs -type f -name '*.md' | sort | xargs markdownlint`
+  passed; `uv run python -m compileall paper_search_mcp tests scripts` passed;
+  `PAPER_SEARCH_LIVE_TESTS=0 uv run python -m unittest discover -q` passed with
+  `OK (skipped=26)`. Commit amended (history rewrite); if already pushed,
+  coordinate a `--force-with-lease` push.
+- Next steps: none.
+- Last updated: 2026-03-14
+
 ### Review Follow-ups: HTTP Backoff + Preprint Proxies
 
 - Status: completed

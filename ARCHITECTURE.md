@@ -10,7 +10,7 @@ depends on live upstream services rather than local data.
 2. `docs/PROJECT_SENSE.md` for repo intent and boundaries.
 3. `docs/project-specs/mcp-tool-contract.md` for the public MCP surface.
 4. `docs/project-specs/source-capability-matrix.md` for source-specific limits.
-5. `codemap/reference/CODEBASE_MAP.md` for code navigation.
+5. `docs/CODEBASE_MAP.md` for code navigation.
 
 ## System Shape
 
